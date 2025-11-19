@@ -2,12 +2,27 @@ import { serveFile } from "https://deno.land/std@0.224.0/http/file_server.ts";
 import { setCookie, getCookies, deleteCookie } from "https://deno.land/std@0.224.0/http/cookie.ts";
 
 const kv = await Deno.openKv();
+const ADMIN_USERNAME = "admin"; 
 
 Deno.serve(async (req) => {
   const url = new URL(req.url);
   const cookies = getCookies(req.headers);
   const sessionUser = cookies.user_session || null;
 
+  // --- SECURITY CHECK FOR ADMIN PAGES ---
+  if (url.pathname === "/admin" || url.pathname.startsWith("/static/admin.html")) {
+    if (sessionUser !== ADMIN_USERNAME) {
+      return new Response("Access Denied: You are not an Admin.", { status: 403 });
+    }
+  }
+
+  if (url.pathname.startsWith("/api/admin/")) {
+    if (sessionUser !== ADMIN_USERNAME) {
+      return new Response("Unauthorized", { status: 403 });
+    }
+  }
+
+  // --- PUBLIC ROUTING ---
   if (url.pathname === "/login") return serveFile(req, "./static/login.html");
 
   if ((url.pathname === "/" || url.pathname === "/admin") && !sessionUser) {
@@ -16,9 +31,10 @@ Deno.serve(async (req) => {
 
   if (url.pathname === "/") return serveFile(req, "./static/index.html");
   if (url.pathname === "/admin") return serveFile(req, "./static/admin.html");
+  
   if (url.pathname.startsWith("/static/")) return serveFile(req, "." + url.pathname);
 
-  // --- AUTH ---
+  // --- AUTH API ---
   if (req.method === "POST" && url.pathname === "/api/auth/register") {
     const body = await req.json();
     const u = body.username.toLowerCase();
@@ -50,8 +66,10 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify(user.value), { headers: { "content-type": "application/json" } });
   }
 
-  // --- SHOP ---
+  // --- SHOP API ---
   if (req.method === "POST" && url.pathname === "/api/add-item") {
+    // Double check admin here too
+    if (sessionUser !== ADMIN_USERNAME) return new Response("Unauthorized", { status: 403 });
     const item = await req.json();
     const id = item.name.replace(/\s+/g, '_').toLowerCase();
     await kv.set(["items", id], item);
@@ -65,7 +83,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify(items), { headers: { "content-type": "application/json" } });
   }
 
-  // --- ADMIN ---
+  // --- ADMIN API ---
   if (req.method === "POST" && url.pathname === "/api/admin/topup") {
     const body = await req.json();
     const u = body.username.toLowerCase();
@@ -84,18 +102,16 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify(users), { headers: { "content-type": "application/json" } });
   }
 
-  // --- HISTORY API (NEW) ---
+  // --- HISTORY API ---
   if (url.pathname === "/api/history") {
     if (!sessionUser) return new Response("Unauthorized", { status: 401 });
-    // Get history specifically for this user
     const entries = kv.list({ prefix: ["history", sessionUser] });
     const history = [];
     for await (const entry of entries) history.push(entry.value);
-    // Reverse to show newest first
     return new Response(JSON.stringify(history.reverse()), { headers: { "content-type": "application/json" } });
   }
 
-  // --- BUY API (Updated with History) ---
+  // --- BUY API ---
   if (req.method === "POST" && url.pathname === "/api/buy") {
     if (!sessionUser) return new Response(JSON.stringify({ error: "Login Required" }), { status: 401 });
 
@@ -114,16 +130,13 @@ Deno.serve(async (req) => {
 
     if (user.balance < price) return new Response(JSON.stringify({ error: "Insufficient Balance" }), { status: 400 });
 
-    // Transaction
     const purchasedCode = item.stock[0];
     item.stock = item.stock.slice(1);
     user.balance -= price;
 
-    // Save Updates
     await kv.set(["items", itemId], item);
     await kv.set(["users", sessionUser], user);
 
-    // Save History Record
     const record = {
       itemName: item.name,
       code: purchasedCode,
