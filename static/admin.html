@@ -19,7 +19,7 @@
     <h1>ADMIN DASHBOARD</h1>
 
     <div class="box">
-        <h2>USER MANAGEMENT (TOP UP)</h2>
+        <h2>USER MANAGEMENT</h2>
         <div style="display: flex; gap: 10px;">
             <input type="text" id="topupUser" placeholder="Username">
             <input type="number" id="topupAmount" placeholder="Amount (MMK)">
@@ -31,6 +31,16 @@
             <thead><tr><th>User</th><th>Balance</th></tr></thead>
             <tbody id="userTable"></tbody>
         </table>
+    </div>
+
+    <div class="box">
+        <h2>CREATE VOUCHER</h2>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <input type="text" id="vCode" placeholder="Code Name (e.g. LUCKY)">
+            <input type="number" id="vAmount" placeholder="Value (MMK)">
+            <input type="number" id="vLimit" placeholder="Usage Limit (e.g. 10)">
+            <button onclick="createVoucher()">CREATE VOUCHER</button>
+        </div>
     </div>
 
     <div class="box">
@@ -63,13 +73,22 @@
             const u = document.getElementById('topupUser').value;
             const a = document.getElementById('topupAmount').value;
             if(!u || !a) return alert("Input missing");
-
-            await fetch('/api/admin/topup', {
-                method: 'POST',
-                body: JSON.stringify({ username: u, amount: a })
-            });
+            await fetch('/api/admin/topup', { method: 'POST', body: JSON.stringify({ username: u, amount: a }) });
             alert("Topup Successful!");
             loadUsers();
+        }
+
+        async function createVoucher() {
+            const code = document.getElementById('vCode').value;
+            const amount = document.getElementById('vAmount').value;
+            const limit = document.getElementById('vLimit').value;
+            if(!code || !amount || !limit) return alert("Fill all fields");
+
+            await fetch('/api/admin/create-voucher', {
+                method: 'POST',
+                body: JSON.stringify({ code, amount, limit })
+            });
+            alert(`Voucher [${code}] Created! Value: ${amount}`);
         }
 
         document.getElementById('addForm').onsubmit = async (e) => {
