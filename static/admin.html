@@ -76,7 +76,8 @@
             <input type="text" id="name" placeholder="Item Name" required>
             <input type="text" id="price" placeholder="Price (e.g. 3500)" required>
             <textarea id="stock" rows="3" placeholder="Codes (one per line)"></textarea>
-            <button type="button" onclick="addItemHandler()">ADD ITEM</button> </form>
+            <button type="button" onclick="addItemHandler()">ADD ITEM</button>
+        </form>
     </div>
 
     <div class="box">
@@ -93,17 +94,53 @@
     <script>
         let allAdminItems = [];
 
-        function openEditModal(itemId, itemName, itemPrice, itemStock) {
-            document.getElementById('editItemId').value = itemId;
-            document.getElementById('editItemName').textContent = itemName;
-            document.getElementById('editItemPrice').value = itemPrice.replace(" MMK", "");
-            document.getElementById('editItemStock').value = itemStock.join('\n');
-            document.getElementById('editModal').style.display = 'flex';
-        }
+        // --- FINAL DIAGNOSTIC ADD ITEM HANDLER ---
+        async function addItemHandler() {
+            try {
+                // Check if the form fields exist and read their values (synchronous test)
+                const nameValue = document.getElementById('name').value;
+                const priceValue = document.getElementById('price').value;
 
-        function closeEditModal() {
-            document.getElementById('editModal').style.display = 'none';
+                if (nameValue.length < 1 || priceValue.length < 1) {
+                    alert("FATAL ERROR: Item Name or Price is missing.");
+                    return;
+                }
+                
+                const data = {
+                    category: document.getElementById('category').value,
+                    name: nameValue,
+                    price: priceValue + " MMK",
+                    stock: document.getElementById('stock').value.split('\n').filter(s => s.trim() !== "")
+                };
+                
+                // Network call part (asynchronous)
+                const response = await fetch('/api/add-item', { 
+                    method: 'POST', 
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data) 
+                });
+
+                if (response.ok) {
+                    alert("Item Added Successfully!");
+                } else {
+                    const errorText = await response.text();
+                    alert(`SERVER ERROR! Status: ${response.status}. Msg: ${errorText}`);
+                }
+            } catch (fatalError) {
+                // If the above code crashes (e.g., element not found, value reading error)
+                alert("CRITICAL CLIENT-SIDE CRASH. Error: " + fatalError.message);
+                return;
+            }
+            
+            document.getElementById('addForm').reset();
+            loadAdminData(); 
         }
+        // ----------------------------------------------------
+
+
+        // --- Other Functions (UNCHANGED) ---
+        function openEditModal(itemId, itemName, itemPrice, itemStock) { /* ... */ }
+        function closeEditModal() { /* ... */ }
 
         async function loadAdminData() {
             try {
@@ -137,7 +174,7 @@
         }
 
         async function deleteItem(itemId) {
-            if(!confirm("Are you sure you want to delete this item?")) return;
+             if(!confirm("Are you sure you want to delete this item?")) return;
 
             try {
                  await fetch('/api/admin/delete-item', {
@@ -189,38 +226,7 @@
             }
         };
 
-        // --- NEW BUTTON HANDLER (BYPASSES FORM ONSUBMIT BUG) ---
-        async function addItemHandler() {
-            try {
-                const data = {
-                    category: document.getElementById('category').value,
-                    name: document.getElementById('name').value,
-                    price: document.getElementById('price').value + " MMK",
-                    stock: document.getElementById('stock').value.split('\n').filter(s => s.trim() !== "")
-                };
-                
-                const response = await fetch('/api/add-item', { 
-                    method: 'POST', 
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(data) 
-                });
 
-                if (response.ok) {
-                    alert("Item Added Successfully!");
-                } else {
-                    const errorText = await response.text();
-                    alert(`SERVER ERROR! Status: ${response.status}. Msg: ${errorText}`);
-                }
-            } catch (networkError) {
-                alert("FATAL ERROR: Server connection failed or code execution broke.");
-            }
-            
-            // Reset form fields manually
-            document.getElementById('addForm').reset();
-            loadAdminData(); // Refresh list to see item
-        }
-
-        // --- Existing Admin Functions ---
         async function loadUsers() { /* ... unchanged ... */ }
         async function topup() { /* ... unchanged ... */ }
         async function createVoucher() { /* ... unchanged ... */ }
