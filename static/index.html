@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Game Shop</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <header>
+        <div class="logo">💎 MY SHOP</div>
+        <div class="balance">Stock: Available</div>
+    </header>
+
+    <div class="categories">
+        <button class="active">All</button>
+        <button>Mobile Legends</button>
+        <button>PUBG</button>
+        <button>Netflix</button>
+    </div>
+
+    <div class="container">
+        <h2>Trending Items 🔥</h2>
+        
+        <div class="grid">
+            <div class="card">
+                <div class="img-box ml">MLBB</div>
+                <div class="info">
+                    <h3>Weekly Pass</h3>
+                    <p class="price">3,500 MMK</p>
+                    <button onclick="buyItem('Weekly Pass')">BUY NOW</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="img-box ml">MLBB</div>
+                <div class="info">
+                    <h3>86 Diamonds</h3>
+                    <p class="price">2,800 MMK</p>
+                    <button onclick="buyItem('86 Diamonds')">BUY NOW</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="img-box pubg">PUBG</div>
+                <div class="info">
+                    <h3>60 UC</h3>
+                    <p class="price">2,500 MMK</p>
+                    <button onclick="buyItem('60 UC')">BUY NOW</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="img-box nf">NETFLIX</div>
+                <div class="info">
+                    <h3>1 Month Premium</h3>
+                    <p class="price">5,000 MMK</p>
+                    <button onclick="buyItem('Netflix 1 Month')">BUY NOW</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function buyItem(itemName) {
+            alert("You clicked Buy: " + itemName + "\n(Backend system coming soon!)");
+        }
+    </script>
+</body>
+</html>
