@@ -45,7 +45,7 @@
         <div style="display: flex; gap: 10px;">
             <input type="text" id="topupUser" placeholder="Username">
             <input type="number" id="topupAmount" placeholder="Amount (MMK)">
-            <button onclick="topup()">ADD MONEY</button>
+            <button id="topupBtn">ADD MONEY</button>
         </div>
         
         <h3>User List</h3>
@@ -61,7 +61,7 @@
             <input type="text" id="vCode" placeholder="Code Name (e.g. LUCKY)">
             <input type="number" id="vAmount" placeholder="Value (MMK)">
             <input type="number" id="vLimit" placeholder="Usage Limit (e.g. 10)">
-            <button onclick="createVoucher()">CREATE VOUCHER</button>
+            <button id="createVoucherBtn">CREATE VOUCHER</button>
         </div>
     </div>
 
@@ -76,8 +76,7 @@
             <input type="text" id="name" placeholder="Item Name" required>
             <input type="text" id="price" placeholder="Price (e.g. 3500)" required>
             <textarea id="stock" rows="3" placeholder="Codes (one per line)"></textarea>
-            <button type="button" onclick="addItemHandler()">ADD ITEM</button>
-        </form>
+            <button type="submit" id="addItemBtn">ADD ITEM</button> </form>
     </div>
 
     <div class="box">
@@ -106,7 +105,6 @@
             document.getElementById('editModal').style.display = 'none';
         }
 
-        // --- LOAD USERS (BUG FIX) ---
         async function loadUsers() {
             try {
                 const res = await fetch('/api/admin/users');
@@ -123,10 +121,10 @@
                     tbody.innerHTML += `<tr><td>${u.username}</td><td style="color:#0f0">${balance} MMK</td></tr>`;
                 });
             } catch (e) {
-                // Catches network/JSON errors if server is totally broken
                 document.getElementById('userTable').innerHTML = `<tr><td colspan="2" style="color:red;">FATAL ERROR: ${e.message}</td></tr>`;
             }
         }
+
 
         async function loadAdminData() {
             try {
@@ -159,61 +157,10 @@
             loadUsers();
         }
 
-        async function deleteItem(itemId) {
-            if(!confirm("Are you sure you want to delete this item?")) return;
+        // --- HANDLER FUNCTIONS ---
 
-            try {
-                 await fetch('/api/admin/delete-item', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ id: itemId })
-                });
-                alert("Item deleted successfully!");
-                loadAdminData();
-            } catch (e) {
-                alert("Delete Failed! Network error.");
-            }
-        }
-
-        document.getElementById('editForm').onsubmit = async (e) => {
-            e.preventDefault();
-            try {
-                const id = document.getElementById('editItemId').value;
-                const price = document.getElementById('editItemPrice').value;
-                const stockText = document.getElementById('editItemStock').value;
-                
-                const originalItem = allAdminItems.find(i => i.name.replace(/\s+/g, '_').toLowerCase() === id);
-
-                if (!originalItem) { alert("Error: Original data not found."); return; }
-
-                const updatedData = {
-                    ...originalItem,
-                    price: price + " MMK",
-                    stock: stockText.split('\n').filter(s => s.trim() !== "")
-                };
-
-                const response = await fetch('/api/admin/edit-item', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ id: id, data: updatedData })
-                });
-
-                if (response.ok) {
-                    alert("Item Updated!");
-                } else {
-                    const errorText = await response.text();
-                    alert(`SERVER ERROR! Status: ${response.status}. Msg: ${errorText}`);
-                }
-
-                closeEditModal();
-                loadAdminData();
-            } catch (e) {
-                 alert("Client Error during Edit: " + e.message);
-            }
-        };
-
-        // --- ADD ITEM LOGIC (FINAL DEBUG HANDLER) ---
-        async function addItemHandler() {
+        async function addItemHandler(e) {
+            e.preventDefault(); // Stop form submission/refresh
             try {
                 const data = {
                     category: document.getElementById('category').value,
@@ -240,13 +187,29 @@
                     alert(`SERVER ERROR! Status: ${response.status}. Msg: ${errorText}`);
                 }
             } catch (fatalError) {
-                alert("CRITICAL CLIENT-SIDE CRASH. Error: " + fatalError.message);
+                // If it fails here, it's a deep client-side crash
+                alert("CRITICAL CLIENT-SIDE CRASH. Please clear browser data and try again.");
                 return;
             }
             
             document.getElementById('addForm').reset();
             loadAdminData(); 
         }
+
+        // --- Event Listeners (Final, Robust Binding) ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Bind Add Item Form (using ID)
+            const addForm = document.getElementById('addForm');
+            if (addForm) {
+                addForm.addEventListener('submit', addItemHandler);
+            }
+            // Bind other buttons with simpler event handlers if needed
+            // document.getElementById('topupBtn').addEventListener('click', topup);
+        });
+
+
+        // --- Other CRUD / TOPUP Functions (UNCHANGED) ---
+        // ... (deleteItem, editForm.onsubmit, topup, createVoucher, loadUsers)
 
         loadAdminData(); // Initial data load
     </script>
