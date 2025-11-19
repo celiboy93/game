@@ -6,6 +6,7 @@
     <title>Pro Game Shop</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
+        /* Modal Styles for History, Transfer, Redeem */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 999; align-items: center; justify-content: center; }
         .modal-content { background: #222; padding: 20px; width: 90%; max-width: 400px; border-radius: 10px; border: 1px solid #ffd700; max-height: 80vh; overflow-y: auto; }
         .history-item { background: #333; padding: 10px; margin-bottom: 10px; border-radius: 5px; border-left: 4px solid #0f0; }
@@ -31,9 +32,9 @@
     </div>
 
     <div style="padding: 0 15px; margin-bottom: 10px; display: flex; gap: 10px;">
-        <button onclick="openModal('transferModal')" style="background: #673AB7; flex: 1; padding: 10px; border: none; border-radius: 5px; color: white;">💸 Transfer</button>
-        <button onclick="openModal('voucherModal')" style="background: #009688; flex: 1; padding: 10px; border: none; border-radius: 5px; color: white;">🎁 Redeem</button>
-        <button onclick="showHistory()" style="background: #2196F3; flex: 1; padding: 10px; border: none; border-radius: 5px; color: white;">📜 History</button>
+        <button onclick="openModal('transferModal')" style="background: #673AB7; flex: 1; padding: 10px; border: none; border-radius: 5px; color: white;">Transfer</button>
+        <button onclick="openModal('voucherModal')" style="background: #009688; flex: 1; padding: 10px; border: none; border-radius: 5px; color: white;">Redeem</button>
+        <button onclick="showHistory()" style="background: #2196F3; flex: 1; padding: 10px; border: none; border-radius: 5px; color: white;">History</button>
     </div>
 
     <div class="container">
@@ -78,13 +79,12 @@
                 document.getElementById('userBalance').innerHTML = 
                     `${user.username.toUpperCase()} | <span style="color:#0f0">${user.balance} MMK</span>`;
 
+                // SHOW ADMIN BUTTON IF USER IS ADMIN
                 if(user.username === "admin") {
                     const nav = document.querySelector('.categories');
-                    if(!document.getElementById('adminBtn')) {
-                        nav.insertAdjacentHTML('beforeend', 
-                            `<button id="adminBtn" onclick="location.href='/admin'" style="background:red; color:white; border:1px solid white;">ADMIN</button>`
-                        );
-                    }
+                    nav.insertAdjacentHTML('beforeend', 
+                        `<button onclick="location.href='/admin'" style="background:red; color:white; border:1px solid white;">ADMIN</button>`
+                    );
                 }
             } else {
                 location.href = '/login';
@@ -128,35 +128,48 @@
 
         async function buyItem(name) {
             if(!confirm(`Buy ${name}?`)) return;
-            const res = await fetch('/api/buy', { method: 'POST', body: JSON.stringify({ itemName: name }) });
+
+            const res = await fetch('/api/buy', {
+                method: 'POST',
+                body: JSON.stringify({ itemName: name })
+            });
             const result = await res.json();
-            if(result.success) { alert(`SUCCESS!\nCode: ${result.code}`); init(); } 
-            else { alert(`FAILED: ${result.error}`); }
+
+            if(result.success) {
+                // Customized Success Message Here
+                alert(`SUCCESS! Thank you for purchase.\nYour Code:\n${result.code}\n\n(Saved to History)`); 
+                init(); 
+            } else {
+                alert(`FAILED: ${result.error}`);
+            }
         }
 
-        // --- New Features ---
         function openModal(id) { document.getElementById(id).style.display = 'flex'; }
-        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        function closeModal(id) { 
+            document.getElementById(id).style.display = 'none';
+            document.getElementById('tReceiver').value = ''; // Clear transfer fields
+            document.getElementById('tAmount').value = '';
+            document.getElementById('vCodeInput').value = '';
+        }
 
         async function doTransfer() {
             const receiver = document.getElementById('tReceiver').value;
             const amount = document.getElementById('tAmount').value;
             if(!receiver || !amount) return alert("Fill all fields");
 
-            const res = await fetch('/api/transfer', {
-                method: 'POST', body: JSON.stringify({ receiver, amount })
-            });
+            const res = await fetch('/api/transfer', { method: 'POST', body: JSON.stringify({ receiver, amount }) });
             if(res.ok) { alert("Transfer Successful!"); closeModal('transferModal'); init(); }
-            else { alert("Transfer Failed! Check balance or username."); }
+            else { 
+                const data = await res.text();
+                alert("Transfer Failed! Reason: " + data); 
+            }
         }
 
         async function doRedeem() {
             const code = document.getElementById('vCodeInput').value;
             if(!code) return alert("Enter code");
 
-            const res = await fetch('/api/redeem', {
-                method: 'POST', body: JSON.stringify({ code })
-            });
+            const res = await fetch('/api/redeem', { method: 'POST', body: JSON.stringify({ code }) });
             if(res.ok) { 
                 const data = await res.json();
                 alert(`CONGRATS! You received ${data.amount} MMK`); 
@@ -168,17 +181,21 @@
             openModal('historyModal');
             const list = document.getElementById('historyList');
             list.innerHTML = 'Loading...';
+
             const res = await fetch('/api/history');
             const data = await res.json();
+
             list.innerHTML = '';
-            if(data.length === 0) { list.innerHTML = '<p style="text-align:center;">No history.</p>'; return; }
+            if(data.length === 0) { list.innerHTML = '<p style="text-align:center;">No purchases yet.</p>'; return; }
             data.forEach(record => {
-                list.innerHTML += `
-                    <div class="history-item">
-                        <strong>${record.itemName}</strong><br>
-                        <small style="color:#ccc">${record.date}</small>
-                        <span class="code-text">${record.code}</span>
-                    </div>`;
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.innerHTML = `
+                    <strong>${record.itemName}</strong><br>
+                    <small style="color:#ccc">${record.date}</small>
+                    <span class="code-text">${record.code}</span>
+                `;
+                list.appendChild(item);
             });
         }
 
