@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shop Admin</title>
     <style>
-        /* ... Styles remain unchanged ... */
         body { background: #222; color: white; font-family: sans-serif; padding: 20px; max-width: 800px; margin: auto; }
         input, select, button, textarea { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
         button { background: #ffd700; border: none; font-weight: bold; cursor: pointer; }
@@ -181,7 +180,7 @@
                     alert("Item Updated!");
                 } else {
                     const errorText = await response.text();
-                    alert(`SERVER ERROR: Status ${response.status}. Msg: ${errorText}`);
+                    alert(`SERVER ERROR! Status: ${response.status}. Msg: ${errorText}`);
                 }
 
                 closeEditModal();
@@ -191,9 +190,9 @@
             }
         };
 
-        // --- ADD ITEM LOGIC (CRUCIAL FIX HERE) ---
+        // --- ADD ITEM LOGIC (CRUCIAL DEBUG FIX) ---
         document.getElementById('addForm').onsubmit = async (e) => {
-            e.preventDefault();
+            e.preventDefault(); // Stop page refresh immediately
             try {
                 const data = {
                     category: document.getElementById('category').value,
@@ -223,9 +222,9 @@
         };
 
         // --- Existing Admin Functions ---
-        async function loadUsers() { /* ... unchanged ... */ }
-        async function topup() { /* ... unchanged ... */ }
-        async function createVoucher() { /* ... unchanged ... */ }
+        async function loadUsers() { /* ... */ }
+        async function topup() { /* ... */ }
+        async function createVoucher() { /* ... */ }
 
         loadAdminData(); // Initial data load
     </script>
