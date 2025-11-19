@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shop Admin</title>
     <style>
+        /* ... Styles remain unchanged ... */
         body { background: #222; color: white; font-family: sans-serif; padding: 20px; max-width: 800px; margin: auto; }
         input, select, button, textarea { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
         button { background: #ffd700; border: none; font-weight: bold; cursor: pointer; }
@@ -92,7 +93,7 @@
     </div>
 
     <script>
-        let allAdminItems = []; 
+        let allAdminItems = [];
 
         function openEditModal(itemId, itemName, itemPrice, itemStock) {
             document.getElementById('editItemId').value = itemId;
@@ -107,17 +108,20 @@
         }
 
         async function loadAdminData() {
-            // Load Items (Including full stock)
-            const itemRes = await fetch('/api/items');
-            allAdminItems = await itemRes.json(); 
+            try {
+                const itemRes = await fetch('/api/items');
+                allAdminItems = await itemRes.json(); 
+            } catch (e) {
+                console.error("Failed to load items from API:", e);
+                return;
+            }
             
             const itemTableBody = document.querySelector('#itemTable tbody');
             itemTableBody.innerHTML = '';
             
             allAdminItems.forEach(item => {
                 const itemId = item.name.replace(/\s+/g, '_').toLowerCase();
-                const stockDisplay = item.stock.length > 0 ? `${item.stock.length} (${item.stock.length * 100}%)` : `0`;
-
+                
                 itemTableBody.innerHTML += `
                     <tr>
                         <td>${item.name} (${item.category.toUpperCase()})</td>
@@ -131,60 +135,73 @@
                 `;
             });
             
-            // Load Users
             loadUsers();
         }
 
         async function deleteItem(itemId) {
             if(!confirm("Are you sure you want to delete this item?")) return;
 
-            await fetch('/api/admin/delete-item', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ id: itemId })
-            });
-            alert("Item deleted successfully!");
-            loadAdminData();
+            try {
+                 await fetch('/api/admin/delete-item', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ id: itemId })
+                });
+                alert("Item deleted successfully!");
+                loadAdminData();
+            } catch (e) {
+                alert("Delete Failed! Network error.");
+            }
         }
 
         document.getElementById('editForm').onsubmit = async (e) => {
             e.preventDefault();
-            const id = document.getElementById('editItemId').value;
-            const price = document.getElementById('editItemPrice').value;
-            const stockText = document.getElementById('editItemStock').value;
-            
-            const originalItem = allAdminItems.find(i => i.name.replace(/\s+/g, '_').toLowerCase() === id);
+            try {
+                const id = document.getElementById('editItemId').value;
+                const price = document.getElementById('editItemPrice').value;
+                const stockText = document.getElementById('editItemStock').value;
+                
+                const originalItem = allAdminItems.find(i => i.name.replace(/\s+/g, '_').toLowerCase() === id);
 
-            if (!originalItem) { alert("Error: Original data not found."); return; }
+                if (!originalItem) { alert("Error: Original data not found."); return; }
 
-            const updatedData = {
-                ...originalItem,
-                price: price + " MMK",
-                stock: stockText.split('\n').filter(s => s.trim() !== "")
-            };
+                const updatedData = {
+                    ...originalItem,
+                    price: price + " MMK",
+                    stock: stockText.split('\n').filter(s => s.trim() !== "")
+                };
 
-            await fetch('/api/admin/edit-item', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ id: id, data: updatedData })
-            });
+                const response = await fetch('/api/admin/edit-item', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ id: id, data: updatedData })
+                });
 
-            alert("Item Updated!");
-            closeEditModal();
-            loadAdminData();
+                if (response.ok) {
+                    alert("Item Updated!");
+                } else {
+                    const errorText = await response.text();
+                    alert(`SERVER ERROR: Status ${response.status}. Msg: ${errorText}`);
+                }
+
+                closeEditModal();
+                loadAdminData();
+            } catch (e) {
+                 alert("Client Error during Edit: " + e.message);
+            }
         };
 
         // --- ADD ITEM LOGIC (CRUCIAL FIX HERE) ---
         document.getElementById('addForm').onsubmit = async (e) => {
             e.preventDefault();
-            const data = {
-                category: document.getElementById('category').value,
-                name: document.getElementById('name').value,
-                price: document.getElementById('price').value + " MMK",
-                stock: document.getElementById('stock').value.split('\n').filter(s => s.trim() !== "")
-            };
-            
             try {
+                const data = {
+                    category: document.getElementById('category').value,
+                    name: document.getElementById('name').value,
+                    price: document.getElementById('price').value + " MMK",
+                    stock: document.getElementById('stock').value.split('\n').filter(s => s.trim() !== "")
+                };
+                
                 const response = await fetch('/api/add-item', { 
                     method: 'POST', 
                     headers: {'Content-Type': 'application/json'},
@@ -198,11 +215,11 @@
                     alert(`SERVER ERROR! Status: ${response.status}. Msg: ${errorText}`);
                 }
             } catch (networkError) {
-                alert("NETWORK ERROR: Server connection failed or timed out.");
+                alert("FATAL ERROR: Server connection failed or code execution broke.");
             }
             
-            e.target.reset(); // Clear form fields
-            loadAdminData(); // Refresh list to see item
+            e.target.reset(); 
+            loadAdminData(); 
         };
 
         // --- Existing Admin Functions ---
