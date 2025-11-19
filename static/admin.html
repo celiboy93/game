@@ -5,55 +5,71 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shop Admin</title>
     <style>
-        body { background: #222; color: white; font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+        body { background: #222; color: white; font-family: sans-serif; padding: 20px; max-width: 800px; margin: auto; }
         input, select, button, textarea { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
         button { background: #ffd700; border: none; font-weight: bold; cursor: pointer; }
-        .item-box { background: #333; padding: 10px; margin-top: 10px; border-radius: 5px; border: 1px solid #444; }
-        h2 { color: #ffd700; border-bottom: 1px solid #555; padding-bottom: 10px; }
+        .box { background: #333; padding: 15px; margin-bottom: 20px; border-radius: 8px; border: 1px solid #444; }
+        h2 { color: #ffd700; border-bottom: 1px solid #555; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #555; padding: 8px; text-align: left; }
+        th { background: #444; }
     </style>
 </head>
 <body>
-    <h2>ADD NEW ITEM</h2>
-    <form id="addForm">
-        <label>Category:</label>
-        <select id="category">
-            <option value="ml">Mobile Legends</option>
-            <option value="pubg">PUBG</option>
-            <option value="netflix">Netflix</option>
-        </select>
+    <h1>ADMIN DASHBOARD</h1>
 
-        <label>Item Name (e.g., Weekly Pass):</label>
-        <input type="text" id="name" required>
+    <div class="box">
+        <h2>USER MANAGEMENT (TOP UP)</h2>
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="topupUser" placeholder="Username">
+            <input type="number" id="topupAmount" placeholder="Amount (MMK)">
+            <button onclick="topup()">ADD MONEY</button>
+        </div>
+        
+        <h3>User List</h3>
+        <table>
+            <thead><tr><th>User</th><th>Balance</th></tr></thead>
+            <tbody id="userTable"></tbody>
+        </table>
+    </div>
 
-        <label>Price (e.g., 3500 MMK):</label>
-        <input type="text" id="price" required>
-
-        <label>Stock Data (One code per line):</label>
-        <textarea id="stock" rows="5" placeholder="user1:pass1&#10;user2:pass2"></textarea>
-
-        <button type="submit">ADD ITEM</button>
-    </form>
-
-    <h2>CURRENT STOCK</h2>
-    <div id="stockList">Loading...</div>
+    <div class="box">
+        <h2>ADD NEW ITEM</h2>
+        <form id="addForm">
+            <select id="category">
+                <option value="ml">Mobile Legends</option>
+                <option value="pubg">PUBG</option>
+                <option value="netflix">Netflix</option>
+            </select>
+            <input type="text" id="name" placeholder="Item Name" required>
+            <input type="text" id="price" placeholder="Price (e.g. 3500)" required>
+            <textarea id="stock" rows="3" placeholder="Codes (one per line)"></textarea>
+            <button type="submit">ADD ITEM</button>
+        </form>
+    </div>
 
     <script>
-        async function loadItems() {
-            const res = await fetch('/api/items');
-            const items = await res.json();
-            const list = document.getElementById('stockList');
-            list.innerHTML = '';
-            
-            items.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'item-box';
-                div.innerHTML = `
-                    <strong>${item.name}</strong> (${item.category})<br>
-                    Price: ${item.price}<br>
-                    Stock Count: <span style="color: #0f0">${item.stock.length}</span>
-                `;
-                list.appendChild(div);
+        async function loadUsers() {
+            const res = await fetch('/api/admin/users');
+            const users = await res.json();
+            const tbody = document.getElementById('userTable');
+            tbody.innerHTML = '';
+            users.forEach(u => {
+                tbody.innerHTML += `<tr><td>${u.username}</td><td style="color:#0f0">${u.balance} MMK</td></tr>`;
             });
+        }
+
+        async function topup() {
+            const u = document.getElementById('topupUser').value;
+            const a = document.getElementById('topupAmount').value;
+            if(!u || !a) return alert("Input missing");
+
+            await fetch('/api/admin/topup', {
+                method: 'POST',
+                body: JSON.stringify({ username: u, amount: a })
+            });
+            alert("Topup Successful!");
+            loadUsers();
         }
 
         document.getElementById('addForm').onsubmit = async (e) => {
@@ -61,22 +77,14 @@
             const data = {
                 category: document.getElementById('category').value,
                 name: document.getElementById('name').value,
-                price: document.getElementById('price').value,
+                price: document.getElementById('price').value + " MMK",
                 stock: document.getElementById('stock').value.split('\n').filter(s => s.trim() !== "")
             };
-
-            await fetch('/api/add-item', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)
-            });
-
+            await fetch('/api/add-item', { method: 'POST', body: JSON.stringify(data) });
             alert("Item Added!");
-            loadItems();
-            e.target.reset();
         };
 
-        loadItems();
+        loadUsers();
     </script>
 </body>
 </html>
