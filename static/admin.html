@@ -76,8 +76,7 @@
             <input type="text" id="name" placeholder="Item Name" required>
             <input type="text" id="price" placeholder="Price (e.g. 3500)" required>
             <textarea id="stock" rows="3" placeholder="Codes (one per line)"></textarea>
-            <button type="submit">ADD ITEM</button>
-        </form>
+            <button type="button" onclick="addItemHandler()">ADD ITEM</button> </form>
     </div>
 
     <div class="box">
@@ -190,9 +189,8 @@
             }
         };
 
-        // --- ADD ITEM LOGIC (CRUCIAL DEBUG FIX) ---
-        document.getElementById('addForm').onsubmit = async (e) => {
-            e.preventDefault(); // Stop page refresh immediately
+        // --- NEW BUTTON HANDLER (BYPASSES FORM ONSUBMIT BUG) ---
+        async function addItemHandler() {
             try {
                 const data = {
                     category: document.getElementById('category').value,
@@ -217,14 +215,15 @@
                 alert("FATAL ERROR: Server connection failed or code execution broke.");
             }
             
-            e.target.reset(); 
-            loadAdminData(); 
-        };
+            // Reset form fields manually
+            document.getElementById('addForm').reset();
+            loadAdminData(); // Refresh list to see item
+        }
 
         // --- Existing Admin Functions ---
-        async function loadUsers() { /* ... */ }
-        async function topup() { /* ... */ }
-        async function createVoucher() { /* ... */ }
+        async function loadUsers() { /* ... unchanged ... */ }
+        async function topup() { /* ... unchanged ... */ }
+        async function createVoucher() { /* ... unchanged ... */ }
 
         loadAdminData(); // Initial data load
     </script>
