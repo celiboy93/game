@@ -1,17 +1,18 @@
 import { serveFile } from "https://deno.land/std@0.224.0/http/file_server.ts";
 import { setCookie, getCookies, deleteCookie } from "https://deno.land/std@0.224.0/http/cookie.ts";
+import * as bcrypt from "https://deno.land/x/bcrypt@v1.1.0/mod.ts"; // Password Hashing Library
 
 const kv = await Deno.openKv();
-const ADMIN_USERNAME = "admin";
+const ADMIN_USERNAME = "admin"; 
 
 Deno.serve(async (req) => {
   const url = new URL(req.url);
   const cookies = getCookies(req.headers);
   const sessionUser = cookies.user_session || null;
 
-  // --- SECURITY ---
+  // --- SECURITY & ADMIN CHECK ---
   if (url.pathname === "/admin" || url.pathname.startsWith("/static/admin.html")) {
-    if (sessionUser !== ADMIN_USERNAME) return new Response("Access Denied", { status: 403 });
+    if (sessionUser !== ADMIN_USERNAME) return new Response("Access Denied: Admins Only", { status: 403 });
   }
   if (url.pathname.startsWith("/api/admin/")) {
     if (sessionUser !== ADMIN_USERNAME) return new Response("Unauthorized", { status: 403 });
@@ -19,7 +20,6 @@ Deno.serve(async (req) => {
 
   // --- ROUTING ---
   if (url.pathname === "/login") return serveFile(req, "./static/login.html");
-  
   if ((url.pathname === "/" || url.pathname === "/admin") && !sessionUser) {
     return new Response(null, { status: 302, headers: { Location: "/login" } });
   }
@@ -28,21 +28,29 @@ Deno.serve(async (req) => {
   if (url.pathname === "/admin") return serveFile(req, "./static/admin.html");
   if (url.pathname.startsWith("/static/")) return serveFile(req, "." + url.pathname);
 
-  // --- AUTH ---
+  // --- API: AUTH (HASHING IMPLEMENTED) ---
   if (req.method === "POST" && url.pathname === "/api/auth/register") {
     const body = await req.json();
     const u = body.username.toLowerCase();
     const check = await kv.get(["users", u]);
     if (check.value) return new Response("Exists", { status: 400 });
-    await kv.set(["users", u], { username: u, password: body.password, balance: 0 });
+
+    const hashedPassword = await bcrypt.hash(body.password); // HASHING
+    await kv.set(["users", u], { username: u, password: hashedPassword, balance: 0 });
     return new Response("Created");
   }
 
   if (req.method === "POST" && url.pathname === "/api/auth/login") {
     const body = await req.json();
     const u = body.username.toLowerCase();
-    const user = await kv.get(["users", u]);
-    if (!user.value || user.value.password !== body.password) return new Response("Fail", { status: 401 });
+    const userRes = await kv.get(["users", u]);
+    const user = userRes.value;
+
+    if (!user) return new Response("Fail", { status: 401 });
+
+    const passwordMatch = await bcrypt.compare(body.password, user.password); // HASH COMPARISON
+    if (!passwordMatch) return new Response("Fail", { status: 401 });
+
     const res = new Response("Logged In");
     setCookie(res.headers, { name: "user_session", value: u, path: "/", maxAge: 86400 });
     return res;
@@ -59,8 +67,9 @@ Deno.serve(async (req) => {
     const user = await kv.get(["users", sessionUser]);
     return new Response(JSON.stringify(user.value), { headers: { "content-type": "application/json" } });
   }
+  
+  // --- REST OF SHOP/ADMIN API (UNCHANGED LOGIC) ---
 
-  // --- SHOP ---
   if (req.method === "POST" && url.pathname === "/api/add-item") {
     const item = await req.json();
     const id = item.name.replace(/\s+/g, '_').toLowerCase();
@@ -75,7 +84,6 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify(items), { headers: { "content-type": "application/json" } });
   }
 
-  // --- ADMIN API ---
   if (req.method === "POST" && url.pathname === "/api/admin/topup") {
     const body = await req.json();
     const u = body.username.toLowerCase();
@@ -87,27 +95,12 @@ Deno.serve(async (req) => {
     return new Response("Topup Success");
   }
 
-  if (url.pathname === "/api/admin/users") {
-    const entries = kv.list({ prefix: ["users"] });
-    const users = [];
-    for await (const entry of entries) users.push(entry.value);
-    return new Response(JSON.stringify(users), { headers: { "content-type": "application/json" } });
-  }
-
-  // --- VOUCHER API (ADMIN) ---
   if (req.method === "POST" && url.pathname === "/api/admin/create-voucher") {
-    const body = await req.json(); // { code: "ABC", amount: 1000, limit: 10 }
-    await kv.set(["vouchers", body.code], { 
-      amount: parseInt(body.amount), 
-      limit: parseInt(body.limit), 
-      used: 0 
-    });
+    const body = await req.json();
+    await kv.set(["vouchers", body.code], { amount: parseInt(body.amount), limit: parseInt(body.limit), used: 0 });
     return new Response("Voucher Created");
   }
 
-  // --- USER FEATURES (TRANSFER & REDEEM) ---
-  
-  // 1. Transfer Money
   if (req.method === "POST" && url.pathname === "/api/transfer") {
     if (!sessionUser) return new Response("Unauthorized", { status: 401 });
     const body = await req.json();
@@ -117,17 +110,14 @@ Deno.serve(async (req) => {
     if (receiverName === sessionUser) return new Response("Cannot send to self", { status: 400 });
     if (amount <= 0) return new Response("Invalid amount", { status: 400 });
 
-    // Get Sender
     const senderRes = await kv.get(["users", sessionUser]);
     const sender = senderRes.value;
     if (sender.balance < amount) return new Response("Insufficient Balance", { status: 400 });
 
-    // Get Receiver
     const receiverRes = await kv.get(["users", receiverName]);
     if (!receiverRes.value) return new Response("Receiver not found", { status: 404 });
     const receiver = receiverRes.value;
 
-    // Atomic Transaction
     sender.balance -= amount;
     receiver.balance += amount;
 
@@ -136,8 +126,7 @@ Deno.serve(async (req) => {
 
     return new Response("Transfer Success");
   }
-
-  // 2. Redeem Voucher
+  
   if (req.method === "POST" && url.pathname === "/api/redeem") {
     if (!sessionUser) return new Response("Unauthorized", { status: 401 });
     const body = await req.json();
@@ -149,14 +138,10 @@ Deno.serve(async (req) => {
     const voucher = voucherRes.value;
     if (voucher.used >= voucher.limit) return new Response("Voucher Fully Used", { status: 400 });
 
-    // Check if user already used this voucher (Optional: skipping for simplicity in this version)
-    
-    // Update User Balance
     const userRes = await kv.get(["users", sessionUser]);
     const user = userRes.value;
     user.balance += voucher.amount;
     
-    // Update Voucher Usage
     voucher.used += 1;
 
     await kv.set(["users", sessionUser], user);
@@ -165,18 +150,9 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ amount: voucher.amount }), { headers: { "content-type": "application/json" } });
   }
 
-  // --- HISTORY ---
-  if (url.pathname === "/api/history") {
-    if (!sessionUser) return new Response("Unauthorized", { status: 401 });
-    const entries = kv.list({ prefix: ["history", sessionUser] });
-    const history = [];
-    for await (const entry of entries) history.push(entry.value);
-    return new Response(JSON.stringify(history.reverse()), { headers: { "content-type": "application/json" } });
-  }
-
-  // --- BUY ---
   if (req.method === "POST" && url.pathname === "/api/buy") {
     if (!sessionUser) return new Response(JSON.stringify({ error: "Login Required" }), { status: 401 });
+
     const body = await req.json();
     const itemId = body.itemName.replace(/\s+/g, '_').toLowerCase();
     
@@ -199,10 +175,34 @@ Deno.serve(async (req) => {
     await kv.set(["items", itemId], item);
     await kv.set(["users", sessionUser], user);
 
-    const record = { itemName: item.name, code: purchasedCode, price: item.price, date: new Date().toLocaleString() };
+    const record = {
+      itemName: item.name,
+      code: purchasedCode,
+      price: item.price,
+      date: new Date().toLocaleString()
+    };
     await kv.set(["history", sessionUser, Date.now()], record);
 
-    return new Response(JSON.stringify({ success: true, code: purchasedCode }), { headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify({ success: true, code: purchasedCode }), {
+      headers: { "content-type": "application/json" }
+    });
+  }
+
+  // --- GENERAL API & ROUTING ---
+
+  if (url.pathname === "/api/history") {
+    if (!sessionUser) return new Response("Unauthorized", { status: 401 });
+    const entries = kv.list({ prefix: ["history", sessionUser] });
+    const history = [];
+    for await (const entry of entries) history.push(entry.value);
+    return new Response(JSON.stringify(history.reverse()), { headers: { "content-type": "application/json" } });
+  }
+  
+  if (url.pathname === "/api/admin/users") {
+    const entries = kv.list({ prefix: ["users"] });
+    const users = [];
+    for await (const entry of entries) users.push(entry.value);
+    return new Response(JSON.stringify(users), { headers: { "content-type": "application/json" } });
   }
 
   return new Response("Not Found", { status: 404 });
