@@ -6,12 +6,22 @@
     <title>Pro Game Shop</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
-        /* Modal Styles for History, Transfer, Redeem */
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 999; align-items: center; justify-content: center; }
-        .modal-content { background: #222; padding: 20px; width: 90%; max-width: 400px; border-radius: 10px; border: 1px solid #ffd700; max-height: 80vh; overflow-y: auto; }
+        /* Shared Modal Styles */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 999; align-items: center; justify-content: center; }
+        .modal-content { background: #222; padding: 25px; width: 90%; max-width: 400px; border-radius: 10px; max-height: 80vh; overflow-y: auto; text-align: center; }
+        
+        /* New Success Modal Style */
+        .success-box {
+            border: 2px solid #0f0; 
+            box-shadow: 0 0 20px rgba(15, 255, 0, 0.4);
+        }
+        .success-icon { font-size: 50px; color: #0f0; margin-bottom: 10px; }
+        .code-display { background: #000; color: #0f0; padding: 10px; border-radius: 5px; margin: 15px 0; font-family: monospace; font-size: 16px; word-break: break-all; }
+        .copy-btn { background: #2196F3; color: white; border: none; padding: 10px 0; width: 100%; margin-top: 10px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .close-btn { background: #555; color: white; border: none; padding: 10px 0; width: 100%; margin-top: 10px; border-radius: 5px; cursor: pointer; }
+
+        /* General Modal Styles (Existing) */
         .history-item { background: #333; padding: 10px; margin-bottom: 10px; border-radius: 5px; border-left: 4px solid #0f0; }
-        .code-text { background: #000; color: #0f0; padding: 5px; margin-top: 5px; font-family: monospace; display: block; text-align: center; border-radius: 3px; }
-        .close-btn { background: #d32f2f; width: 100%; margin-top: 10px; }
         .action-btn { width: 100%; padding: 12px; margin-bottom: 10px; border: none; border-radius: 5px; color: white; font-weight: bold; cursor: pointer; }
         .inp-field { width: 100%; padding: 10px; margin-bottom: 10px; background: #333; border: 1px solid #555; color: white; box-sizing: border-box; border-radius: 5px; }
     </style>
@@ -41,28 +51,18 @@
         <div class="grid" id="productGrid"></div>
     </div>
 
-    <div id="historyModal" class="modal">
-        <div class="modal-content">
-            <h2 style="color: #ffd700; text-align: center; margin-top: 0;">MY ORDERS</h2>
-            <div id="historyList">Loading...</div>
-            <button class="close-btn" onclick="closeModal('historyModal')">CLOSE</button>
-        </div>
-    </div>
-    <div id="transferModal" class="modal">
-        <div class="modal-content">
-            <h2 style="color: #fff; text-align: center;">TRANSFER MONEY</h2>
-            <input type="text" id="tReceiver" class="inp-field" placeholder="Receiver Username">
-            <input type="number" id="tAmount" class="inp-field" placeholder="Amount (MMK)">
-            <button class="action-btn" style="background: #673AB7;" onclick="doTransfer()">SEND NOW</button>
-            <button class="close-btn" onclick="closeModal('transferModal')">CANCEL</button>
-        </div>
-    </div>
-    <div id="voucherModal" class="modal">
-        <div class="modal-content">
-            <h2 style="color: #fff; text-align: center;">REDEEM VOUCHER</h2>
-            <input type="text" id="vCodeInput" class="inp-field" placeholder="Enter Code (e.g. LUCKY)">
-            <button class="action-btn" style="background: #009688;" onclick="doRedeem()">CLAIM REWARD</button>
-            <button class="close-btn" onclick="closeModal('voucherModal')">CANCEL</button>
+    <div id="historyModal" class="modal"><div class="modal-content"><h2 style="color: #ffd700; text-align: center; margin-top: 0;">MY ORDERS</h2><div id="historyList">Loading...</div><button class="close-btn" onclick="closeModal('historyModal')">CLOSE</button></div></div>
+    <div id="transferModal" class="modal"><div class="modal-content"><h2 style="color: #fff; text-align: center;">TRANSFER MONEY</h2><input type="text" id="tReceiver" class="inp-field" placeholder="Receiver Username"><input type="number" id="tAmount" class="inp-field" placeholder="Amount (MMK)"><button class="action-btn" style="background: #673AB7;" onclick="doTransfer()">SEND NOW</button><button class="close-btn" onclick="closeModal('transferModal')">CANCEL</button></div></div>
+    <div id="voucherModal" class="modal"><div class="modal-content"><h2 style="color: #fff; text-align: center;">REDEEM VOUCHER</h2><input type="text" id="vCodeInput" class="inp-field" placeholder="Enter Code (e.g. LUCKY)"><button class="action-btn" style="background: #009688;" onclick="doRedeem()">CLAIM REWARD</button><button class="close-btn" onclick="closeModal('voucherModal')">CANCEL</button></div></div>
+    
+    <div id="successModal" class="modal">
+        <div class="modal-content success-box">
+            <div class="success-icon">✅</div>
+            <h2 style="color: white; margin-top: 0;">PURCHASE SUCCESSFUL!</h2>
+            <p style="color: #ccc; font-size: 14px;">Your unique code is ready. It has also been saved to your History.</p>
+            <div id="purchasedCodeDisplay" class="code-display"></div>
+            <button class="copy-btn" id="copyBtn">COPY CODE</button>
+            <button class="close-btn" onclick="closeModal('successModal');">OK</button>
         </div>
     </div>
 
@@ -104,7 +104,7 @@
 
             items.forEach(item => {
                 const stockArray = item.stock || []; 
-                const stockCount = stockArray.length;
+                const stockCount = stockArray.length; // Stock count is now directly on the item object from the API fix
                 const isOutOfStock = stockCount === 0;
 
                 let bgClass = 'ml';
@@ -143,14 +143,16 @@
             const result = await res.json();
 
             if(result.success) {
-                // Customized Success Message
-                alert(`SUCCESS! Thank you for purchase.\nYour Code:\n${result.code}\n\n(Saved to History)`); 
-                init(); 
+                // Show Custom Success Modal
+                document.getElementById('purchasedCodeDisplay').textContent = result.code;
+                openModal('successModal');
+                init(); // Refresh Data
             } else {
                 alert(`FAILED: ${result.error}`);
             }
         }
 
+        // --- History & Modal Functions ---
         function openModal(id) { document.getElementById(id).style.display = 'flex'; }
         function closeModal(id) { 
             document.getElementById(id).style.display = 'none';
@@ -158,6 +160,13 @@
             document.getElementById('tAmount').value = '';
             document.getElementById('vCodeInput').value = '';
         }
+
+        document.getElementById('copyBtn').onclick = () => {
+            const code = document.getElementById('purchasedCodeDisplay').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                alert('Code copied!');
+            });
+        };
 
         async function doTransfer() {
             const receiver = document.getElementById('tReceiver').value;
