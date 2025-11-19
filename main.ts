@@ -55,14 +55,14 @@ Deno.serve(async (req) => {
   if (url.pathname === "/admin") return serveFile(req, "./static/admin.html");
   if (url.pathname.startsWith("/static/")) return serveFile(req, "." + url.pathname);
 
-  // API: AUTH
+  // --- API: AUTH ---
   if (req.method === "POST" && url.pathname === "/api/auth/register") {
     const body = await req.json();
     const u = body.username.toLowerCase();
     const check = await kv.get(["users", u]);
     if (check.value) return new Response("Exists", { status: 400 });
 
-    const { hash, salt } = await hashPassword(body.password); // HASHING
+    const { hash, salt } = await hashPassword(body.password);
     await kv.set(["users", u], { username: u, hash: hash, salt: salt, balance: 0 });
     return new Response("Created");
   }
@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
 
     if (!user) return new Response("Fail", { status: 401 });
 
-    const passwordMatch = await verifyPassword(body.password, user.hash, user.salt); // VERIFICATION
+    const passwordMatch = await verifyPassword(body.password, user.hash, user.salt);
     if (!passwordMatch) return new Response("Fail", { status: 401 });
 
     const res = new Response("Logged In");
@@ -95,7 +95,29 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify(user.value), { headers: { "content-type": "application/json" } });
   }
 
-  // API: ADMIN / SHOP FEATURES
+  // --- SHOP & ADMIN API (ROBUST PATH CHECKS) ---
+
+  if (url.pathname.startsWith("/api/items")) { // FIX: Use startsWith for reliable API fetching
+    const entries = kv.list({ prefix: ["items"] });
+    const items = [];
+    for await (const entry of entries) items.push(entry.value);
+    return new Response(JSON.stringify(items), { headers: { "content-type": "application/json" } });
+  }
+
+  if (url.pathname.startsWith("/api/admin/users")) { // FIX: Use startsWith for reliable API fetching
+    const entries = kv.list({ prefix: ["users"] });
+    const users = [];
+    for await (const entry of entries) users.push(entry.value);
+    return new Response(JSON.stringify(users), { headers: { "content-type": "application/json" } });
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/add-item") {
+    const item = await req.json();
+    const id = item.name.replace(/\s+/g, '_').toLowerCase();
+    await kv.set(["items", id], item);
+    return new Response("Added");
+  }
+
   if (req.method === "POST" && url.pathname === "/api/admin/topup") {
     const body = await req.json();
     const u = body.username.toLowerCase();
@@ -113,11 +135,52 @@ Deno.serve(async (req) => {
     return new Response("Voucher Created");
   }
 
-  if (req.method === "POST" && url.pathname === "/api/add-item") {
-    const item = await req.json();
-    const id = item.name.replace(/\s+/g, '_').toLowerCase();
-    await kv.set(["items", id], item);
-    return new Response("Added");
+  if (req.method === "POST" && url.pathname === "/api/transfer") {
+    if (!sessionUser) return new Response("Unauthorized", { status: 401 });
+    const body = await req.json();
+    const receiverName = body.receiver.toLowerCase();
+    const amount = parseInt(body.amount);
+    if (receiverName === sessionUser) return new Response("Cannot send to self", { status: 400 });
+    if (amount <= 0) return new Response("Invalid amount", { status: 400 });
+
+    const senderRes = await kv.get(["users", sessionUser]);
+    const sender = senderRes.value;
+    if (sender.balance < amount) return new Response("Insufficient Balance", { status: 400 });
+
+    const receiverRes = await kv.get(["users", receiverName]);
+    if (!receiverRes.value) return new Response("Receiver not found", { status: 404 });
+    const receiver = receiverRes.value;
+
+    sender.balance -= amount;
+    receiver.balance += amount;
+
+    await kv.set(["users", sessionUser], sender);
+    await kv.set(["users", receiverName], receiver);
+
+    return new Response("Transfer Success");
+  }
+  
+  if (req.method === "POST" && url.pathname === "/api/redeem") {
+    if (!sessionUser) return new Response("Unauthorized", { status: 401 });
+    const body = await req.json();
+    const code = body.code;
+
+    const voucherRes = await kv.get(["vouchers", code]);
+    if (!voucherRes.value) return new Response("Invalid Voucher", { status: 404 });
+    
+    const voucher = voucherRes.value;
+    if (voucher.used >= voucher.limit) return new Response("Voucher Fully Used", { status: 400 });
+
+    const userRes = await kv.get(["users", sessionUser]);
+    const user = userRes.value;
+    user.balance += voucher.amount;
+    
+    voucher.used += 1;
+
+    await kv.set(["users", sessionUser], user);
+    await kv.set(["vouchers", code], voucher);
+
+    return new Response(JSON.stringify({ amount: voucher.amount }), { headers: { "content-type": "application/json" } });
   }
 
   if (req.method === "POST" && url.pathname === "/api/buy") {
@@ -153,50 +216,15 @@ Deno.serve(async (req) => {
     };
     await kv.set(["history", sessionUser, Date.now()], record);
 
-    return new Response(JSON.stringify({ success: true, code: purchasedCode }), {
-      headers: { "content-type": "application/json" }
-    });
+    return new Response(JSON.stringify({ success: true, code: purchasedCode }), { headers: { "content-type": "application/json" } });
   }
-
+  
   if (url.pathname === "/api/history") {
     if (!sessionUser) return new Response("Unauthorized", { status: 401 });
     const entries = kv.list({ prefix: ["history", sessionUser] });
     const history = [];
     for await (const entry of entries) history.push(entry.value);
     return new Response(JSON.stringify(history.reverse()), { headers: { "content-type": "application/json" } });
-  }
-
-  if (url.pathname === "/api/transfer") {
-    if (!sessionUser) return new Response("Unauthorized", { status: 401 });
-    const body = await req.json();
-    const receiverName = body.receiver.toLowerCase();
-    const amount = parseInt(body.amount);
-
-    if (receiverName === sessionUser) return new Response("Cannot send to self", { status: 400 });
-    if (amount <= 0) return new Response("Invalid amount", { status: 400 });
-
-    const senderRes = await kv.get(["users", sessionUser]);
-    const sender = senderRes.value;
-    if (sender.balance < amount) return new Response("Insufficient Balance", { status: 400 });
-
-    const receiverRes = await kv.get(["users", receiverName]);
-    if (!receiverRes.value) return new Response("Receiver not found", { status: 404 });
-    const receiver = receiverRes.value;
-
-    sender.balance -= amount;
-    receiver.balance += amount;
-
-    await kv.set(["users", sessionUser], sender);
-    await kv.set(["users", receiverName], receiver);
-
-    return new Response("Transfer Success");
-  }
-
-  if (url.pathname === "/api/admin/users") {
-    const entries = kv.list({ prefix: ["users"] });
-    const users = [];
-    for await (const entry of entries) users.push(entry.value);
-    return new Response(JSON.stringify(users), { headers: { "content-type": "application/json" } });
   }
 
   return new Response("Not Found", { status: 404 });
