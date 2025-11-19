@@ -11,7 +11,7 @@ function bufferToHex(buffer: ArrayBuffer): string {
 }
 
 function generateSalt(): string {
-    const salt = new Uint8array(16);
+    const salt = new Uint8Array(16);
     crypto.getRandomValues(salt);
     return bufferToHex(salt.buffer);
 }
@@ -38,10 +38,10 @@ Deno.serve(async (req) => {
   const sessionUser = cookies.user_session || null;
 
   // SECURITY & ADMIN CHECK
-  if (url.pathname === "/admin" || url.pathname.includes("/static/admin.html")) {
+  if (url.pathname === "/admin" || url.pathname.startsWith("/static/admin.html")) {
     if (sessionUser !== ADMIN_USERNAME) return new Response("Access Denied: Admins Only", { status: 403 });
   }
-  if (url.pathname.includes("/api/admin/")) {
+  if (url.pathname.startsWith("/api/admin/")) {
     if (sessionUser !== ADMIN_USERNAME) return new Response("Unauthorized", { status: 403 });
   }
 
@@ -56,9 +56,8 @@ Deno.serve(async (req) => {
   if (url.pathname === "/profile") return serveFile(req, "./static/profile.html");
   if (url.pathname.startsWith("/static/")) return serveFile(req, "." + url.pathname);
 
-  // --- API: AUTH & SHOP (ROBUST PATH CHECKS) ---
-  
-  if (req.method === "POST" && url.pathname.includes("/api/auth/register")) {
+  // --- API: AUTH ---
+  if (req.method === "POST" && url.pathname === "/api/auth/register") {
     const body = await req.json();
     const u = body.username.toLowerCase();
     const check = await kv.get(["users", u]);
@@ -69,7 +68,7 @@ Deno.serve(async (req) => {
     return new Response("Created");
   }
 
-  if (req.method === "POST" && url.pathname.includes("/api/auth/login")) {
+  if (req.method === "POST" && url.pathname === "/api/auth/login") {
     const body = await req.json();
     const u = body.username.toLowerCase();
     const userRes = await kv.get(["users", u]);
@@ -85,34 +84,6 @@ Deno.serve(async (req) => {
     return res;
   }
 
-  if (url.pathname.includes("/api/admin/users")) { // FIX: Use includes
-    const entries = kv.list({ prefix: ["users"] });
-    const users = [];
-    for await (const entry of entries) users.push(entry.value);
-    return new Response(JSON.stringify(users), { headers: { "content-type": "application/json" } });
-  }
-
-  if (url.pathname.includes("/api/items")) { // FIX: Use includes
-    const entries = kv.list({ prefix: ["items"] });
-    const items = [];
-    for await (const entry of entries) {
-        const itemCopy = { ...entry.value };
-        itemCopy.stock = itemCopy.stock ? itemCopy.stock.length : 0; 
-        items.push(itemCopy);
-    }
-    return new Response(JSON.stringify(items), { headers: { "content-type": "application/json" } });
-  }
-  
-  if (url.pathname.includes("/api/history")) { // FIX: Use includes
-    if (!sessionUser) return new Response("Unauthorized", { status: 401 });
-    const entries = kv.list({ prefix: ["history", sessionUser] });
-    const history = [];
-    for await (const entry of entries) history.push(entry.value);
-    return new Response(JSON.stringify(history.reverse()), { headers: { "content-type": "application/json" } });
-  }
-  
-  // --- REST OF THE API (Unchanged Logic) ---
-
   if (url.pathname === "/api/auth/logout") {
     const res = new Response(null, { status: 302, headers: { Location: "/login" } });
     deleteCookie(res.headers, "user_session");
@@ -124,7 +95,72 @@ Deno.serve(async (req) => {
     const user = await kv.get(["users", sessionUser]);
     return new Response(JSON.stringify(user.value), { headers: { "content-type": "application/json" } });
   }
+
+  // NEW: Change Password API
+  if (req.method === "POST" && url.pathname === "/api/auth/change-password") {
+    if (!sessionUser) return new Response("Unauthorized", { status: 401 });
+    const body = await req.json();
+    const { old_password, new_password } = body;
+
+    const userRes = await kv.get(["users", sessionUser]);
+    const user = userRes.value;
+    
+    // 1. Verify Old Password
+    const match = await verifyPassword(old_password, user.hash, user.salt);
+    if (!match) return new Response("Incorrect old password", { status: 401 });
+
+    // 2. Hash New Password and Save
+    const { hash, salt } = await hashPassword(new_password);
+    user.hash = hash;
+    user.salt = salt;
+    
+    await kv.set(["users", sessionUser], user);
+    return new Response("Password changed successfully");
+  }
+
+  // --- SHOP & ADMIN API (UPDATED WITH CRUD) ---
+
+  if (url.pathname.startsWith("/api/items")) {
+    const entries = kv.list({ prefix: ["items"] });
+    const items = [];
+    for await (const entry of entries) {
+        const itemCopy = { ...entry.value };
+        itemCopy.stock = itemCopy.stock ? itemCopy.stock.length : 0; 
+        items.push(itemCopy);
+    }
+    return new Response(JSON.stringify(items), { headers: { "content-type": "application/json" } });
+  }
+
+  if (url.pathname.startsWith("/api/admin/users")) {
+    const entries = kv.list({ prefix: ["users"] });
+    const users = [];
+    for await (const entry of entries) users.push(entry.value);
+    return new Response(JSON.stringify(users), { headers: { "content-type": "application/json" } });
+  }
   
+  if (req.method === "POST" && url.pathname === "/api/admin/edit-item") { // NEW: EDIT/UPDATE API
+    const item = await req.json();
+    const id = item.id;
+    await kv.set(["items", id], item.data);
+    return new Response("Item Updated");
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/delete-item") { // NEW: DELETE API
+    const body = await req.json();
+    const id = body.id;
+    await kv.delete(["items", id]);
+    return new Response("Item Deleted");
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/add-item") {
+    const item = await req.json();
+    const id = item.name.replace(/\s+/g, '_').toLowerCase();
+    await kv.set(["items", id], item);
+    return new Response("Added");
+  }
+
+  // ... (OTHER APIS: TOPUP, VOUCHER, TRANSFER, BUY, HISTORY - REST UNCHANGED) ...
+
   if (req.method === "POST" && url.pathname === "/api/admin/topup") {
     const body = await req.json();
     const u = body.username.toLowerCase();
@@ -140,13 +176,6 @@ Deno.serve(async (req) => {
     const body = await req.json();
     await kv.set(["vouchers", body.code], { amount: parseInt(body.amount), limit: parseInt(body.limit), used: 0 });
     return new Response("Voucher Created");
-  }
-
-  if (req.method === "POST" && url.pathname === "/api/add-item") {
-    const item = await req.json();
-    const id = item.name.replace(/\s+/g, '_').toLowerCase();
-    await kv.set(["items", id], item);
-    return new Response("Added");
   }
 
   if (req.method === "POST" && url.pathname === "/api/transfer") {
@@ -232,6 +261,14 @@ Deno.serve(async (req) => {
     await kv.set(["history", sessionUser, Date.now()], record);
 
     return new Response(JSON.stringify({ success: true, code: purchasedCode }), { headers: { "content-type": "application/json" } });
+  }
+
+  if (url.pathname === "/api/history") {
+    if (!sessionUser) return new Response("Unauthorized", { status: 401 });
+    const entries = kv.list({ prefix: ["history", sessionUser] });
+    const history = [];
+    for await (const entry of entries) history.push(entry.value);
+    return new Response(JSON.stringify(history.reverse()), { headers: { "content-type": "application/json" } });
   }
 
   return new Response("Not Found", { status: 404 });
