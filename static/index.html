@@ -6,36 +6,14 @@
     <title>Pro Game Shop</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
-        /* Shared Modal Styles */
+        /* Modals and other styles from previous step */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 999; align-items: center; justify-content: center; }
         .modal-content { background: #222; padding: 25px; width: 90%; max-width: 400px; border-radius: 10px; max-height: 80vh; overflow-y: auto; text-align: center; }
-        
-        /* UPDATED Success Modal Style */
-        .success-box {
-            background: #1a1a1a; /* Darker Internal BG */
-            border: 2px solid #ffd700; /* Gold/Yellow Border */
-            box-shadow: 0 0 30px rgba(255, 215, 0, 0.5); /* Stronger Gold Shadow */
-            padding: 30px 20px;
-        }
-        .success-icon { 
-            font-size: 60px; /* Larger icon */
-            color: #ffd700; /* Gold icon color */
-            margin-bottom: 15px; 
-        }
-        .code-display { 
-            background: #333; 
-            color: #fff; 
-            padding: 10px; 
-            border-radius: 5px; 
-            margin: 15px 0; 
-            font-family: monospace; 
-            font-size: 16px; 
-            word-break: break-all;
-            border: 1px dashed #555; /* Dashed border for copy feeling */
-        }
+        .success-box { background: #1a1a1a; border: 2px solid #ffd700; box-shadow: 0 0 30px rgba(255, 215, 0, 0.5); padding: 30px 20px; }
+        .success-icon { font-size: 60px; color: #ffd700; margin-bottom: 15px; } /* Gold Icon */
+        .code-display { background: #333; color: #fff; padding: 10px; border-radius: 5px; margin: 15px 0; font-family: monospace; font-size: 16px; word-break: break-all; border: 1px dashed #555; }
+        .copy-btn { background: #2196F3; color: white; border: none; padding: 10px 0; width: 100%; margin-top: 10px; border-radius: 5px; cursor: pointer; font-weight: bold; }
         .close-btn { background: #555; color: white; border: none; padding: 10px 0; width: 100%; margin-top: 10px; border-radius: 5px; cursor: pointer; }
-        
-        /* General Modal Styles (Existing) */
         .history-item { background: #333; padding: 10px; margin-bottom: 10px; border-radius: 5px; border-left: 4px solid #0f0; }
         .action-btn { width: 100%; padding: 12px; margin-bottom: 10px; border: none; border-radius: 5px; color: white; font-weight: bold; cursor: pointer; }
         .inp-field { width: 100%; padding: 10px; margin-bottom: 10px; background: #333; border: 1px solid #555; color: white; box-sizing: border-box; border-radius: 5px; }
@@ -45,7 +23,7 @@
 
     <header>
         <div class="logo">💎 MY SHOP</div>
-        <div class="balance" id="userBalance">Loading...</div>
+        <div class="balance" id="userBalance" onclick="location.href='/profile'" style="cursor: pointer;">Loading...</div>
     </header>
 
     <div class="categories">
@@ -72,8 +50,7 @@
     
     <div id="successModal" class="modal">
         <div class="modal-content success-box">
-            <div class="success-icon">🏆</div>
-            <h2 style="color: white; margin-top: 0;">PURCHASE SUCCESSFUL!</h2>
+            <div class="success-icon">🎁</div> <h2 style="color: white; margin-top: 0;">PURCHASE SUCCESSFUL!</h2>
             <p style="color: #ccc; font-size: 14px;">Your unique code is ready. It has also been saved to your History.</p>
             <div id="purchasedCodeDisplay" class="code-display"></div>
             <button class="copy-btn" id="copyBtn">COPY CODE</button>
@@ -165,7 +142,7 @@
             }
         }
 
-        // --- History & Modal Functions ---
+        // --- Utility Functions (Transfer/Redeem/History) ---
         function openModal(id) { document.getElementById(id).style.display = 'flex'; }
         function closeModal(id) { 
             document.getElementById(id).style.display = 'none';
