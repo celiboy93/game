@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pro Game Shop</title>
     <link rel="stylesheet" href="/static/style.css">
+    <style>
+        /* Modal Styles for History */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 999; align-items: center; justify-content: center; }
+        .modal-content { background: #222; padding: 20px; width: 90%; max-width: 400px; border-radius: 10px; border: 1px solid #ffd700; max-height: 80vh; overflow-y: auto; }
+        .history-item { background: #333; padding: 10px; margin-bottom: 10px; border-radius: 5px; border-left: 4px solid #0f0; }
+        .code-text { background: #000; color: #0f0; padding: 5px; margin-top: 5px; font-family: monospace; display: block; text-align: center; border-radius: 3px; }
+        .close-btn { background: #d32f2f; width: 100%; margin-top: 10px; }
+    </style>
 </head>
 <body>
 
@@ -17,7 +25,7 @@
         <button class="active" onclick="filterItems('all')">All</button>
         <button onclick="filterItems('ml')">MLBB</button>
         <button onclick="filterItems('pubg')">PUBG</button>
-        <button onclick="filterItems('netflix')">Netflix</button>
+        <button onclick="showHistory()" style="background: #2196F3; color: white;">📜 History</button>
         <button onclick="location.href='/api/auth/logout'" style="background:#d32f2f; color:white;">Logout</button>
     </div>
 
@@ -25,23 +33,27 @@
         <div class="grid" id="productGrid"></div>
     </div>
 
+    <div id="historyModal" class="modal">
+        <div class="modal-content">
+            <h2 style="color: #ffd700; text-align: center; margin-top: 0;">MY ORDERS</h2>
+            <div id="historyList">Loading...</div>
+            <button class="close-btn" onclick="closeHistory()">CLOSE</button>
+        </div>
+    </div>
+
     <script>
         let allItems = [];
-        let myBalance = 0;
 
         async function init() {
-            // 1. Get User Info
             const userRes = await fetch('/api/me');
             if(userRes.ok) {
                 const user = await userRes.json();
-                myBalance = user.balance;
                 document.getElementById('userBalance').innerHTML = 
                     `${user.username.toUpperCase()} | <span style="color:#0f0">${user.balance} MMK</span>`;
             } else {
-                location.href = '/login'; // Force Login
+                location.href = '/login';
             }
 
-            // 2. Get Items
             const itemRes = await fetch('/api/items');
             allItems = await itemRes.json();
             renderItems(allItems);
@@ -88,11 +100,42 @@
             const result = await res.json();
 
             if(result.success) {
-                alert(`✅ SUCCESS!\nCode: ${result.code}`);
-                init(); // Refresh Balance & Stock
+                alert(`✅ SUCCESS!\nCode: ${result.code}\n\n(Saved to History)`);
+                init(); // Refresh Data
             } else {
                 alert(`❌ FAILED: ${result.error}`);
             }
+        }
+
+        // --- History Functions ---
+        async function showHistory() {
+            document.getElementById('historyModal').style.display = 'flex';
+            const list = document.getElementById('historyList');
+            list.innerHTML = 'Loading...';
+
+            const res = await fetch('/api/history');
+            const data = await res.json();
+
+            list.innerHTML = '';
+            if(data.length === 0) {
+                list.innerHTML = '<p style="text-align:center;">No purchases yet.</p>';
+                return;
+            }
+
+            data.forEach(record => {
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.innerHTML = `
+                    <strong>${record.itemName}</strong>
+                    <div style="font-size: 12px; color: #ccc;">${record.date}</div>
+                    <span class="code-text">${record.code}</span>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function closeHistory() {
+            document.getElementById('historyModal').style.display = 'none';
         }
 
         init();
