@@ -6,7 +6,6 @@
     <title>Pro Game Shop</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
-        /* Modal Styles for History */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 999; align-items: center; justify-content: center; }
         .modal-content { background: #222; padding: 20px; width: 90%; max-width: 400px; border-radius: 10px; border: 1px solid #ffd700; max-height: 80vh; overflow-y: auto; }
         .history-item { background: #333; padding: 10px; margin-bottom: 10px; border-radius: 5px; border-left: 4px solid #0f0; }
@@ -25,7 +24,8 @@
         <button class="active" onclick="filterItems('all')">All</button>
         <button onclick="filterItems('ml')">MLBB</button>
         <button onclick="filterItems('pubg')">PUBG</button>
-        <button onclick="showHistory()" style="background: #2196F3; color: white;">📜 History</button>
+        <button onclick="filterItems('netflix')">Netflix</button>
+        <button onclick="showHistory()" style="background: #2196F3; color: white;">History</button>
         <button onclick="location.href='/api/auth/logout'" style="background:#d32f2f; color:white;">Logout</button>
     </div>
 
@@ -48,8 +48,18 @@
             const userRes = await fetch('/api/me');
             if(userRes.ok) {
                 const user = await userRes.json();
+                
                 document.getElementById('userBalance').innerHTML = 
                     `${user.username.toUpperCase()} | <span style="color:#0f0">${user.balance} MMK</span>`;
+
+                // SHOW ADMIN BUTTON IF USER IS ADMIN
+                if(user.username === "admin") {
+                    const nav = document.querySelector('.categories');
+                    nav.insertAdjacentHTML('beforeend', 
+                        `<button onclick="location.href='/admin'" style="background:red; color:white; border:1px solid white;">ADMIN</button>`
+                    );
+                }
+
             } else {
                 location.href = '/login';
             }
@@ -100,14 +110,13 @@
             const result = await res.json();
 
             if(result.success) {
-                alert(`✅ SUCCESS!\nCode: ${result.code}\n\n(Saved to History)`);
-                init(); // Refresh Data
+                alert(`SUCCESS!\nCode: ${result.code}\n\n(Saved to History)`);
+                init(); 
             } else {
-                alert(`❌ FAILED: ${result.error}`);
+                alert(`FAILED: ${result.error}`);
             }
         }
 
-        // --- History Functions ---
         async function showHistory() {
             document.getElementById('historyModal').style.display = 'flex';
             const list = document.getElementById('historyList');
