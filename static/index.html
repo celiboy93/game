@@ -10,16 +10,31 @@
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 999; align-items: center; justify-content: center; }
         .modal-content { background: #222; padding: 25px; width: 90%; max-width: 400px; border-radius: 10px; max-height: 80vh; overflow-y: auto; text-align: center; }
         
-        /* New Success Modal Style */
+        /* UPDATED Success Modal Style */
         .success-box {
-            border: 2px solid #0f0; 
-            box-shadow: 0 0 20px rgba(15, 255, 0, 0.4);
+            background: #1a1a1a; /* Darker Internal BG */
+            border: 2px solid #ffd700; /* Gold/Yellow Border */
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.5); /* Stronger Gold Shadow */
+            padding: 30px 20px;
         }
-        .success-icon { font-size: 50px; color: #0f0; margin-bottom: 10px; }
-        .code-display { background: #000; color: #0f0; padding: 10px; border-radius: 5px; margin: 15px 0; font-family: monospace; font-size: 16px; word-break: break-all; }
-        .copy-btn { background: #2196F3; color: white; border: none; padding: 10px 0; width: 100%; margin-top: 10px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .success-icon { 
+            font-size: 60px; /* Larger icon */
+            color: #ffd700; /* Gold icon color */
+            margin-bottom: 15px; 
+        }
+        .code-display { 
+            background: #333; 
+            color: #fff; 
+            padding: 10px; 
+            border-radius: 5px; 
+            margin: 15px 0; 
+            font-family: monospace; 
+            font-size: 16px; 
+            word-break: break-all;
+            border: 1px dashed #555; /* Dashed border for copy feeling */
+        }
         .close-btn { background: #555; color: white; border: none; padding: 10px 0; width: 100%; margin-top: 10px; border-radius: 5px; cursor: pointer; }
-
+        
         /* General Modal Styles (Existing) */
         .history-item { background: #333; padding: 10px; margin-bottom: 10px; border-radius: 5px; border-left: 4px solid #0f0; }
         .action-btn { width: 100%; padding: 12px; margin-bottom: 10px; border: none; border-radius: 5px; color: white; font-weight: bold; cursor: pointer; }
@@ -57,7 +72,7 @@
     
     <div id="successModal" class="modal">
         <div class="modal-content success-box">
-            <div class="success-icon">✅</div>
+            <div class="success-icon">🏆</div>
             <h2 style="color: white; margin-top: 0;">PURCHASE SUCCESSFUL!</h2>
             <p style="color: #ccc; font-size: 14px;">Your unique code is ready. It has also been saved to your History.</p>
             <div id="purchasedCodeDisplay" class="code-display"></div>
@@ -103,8 +118,7 @@
             }
 
             items.forEach(item => {
-                const stockArray = item.stock || []; 
-                const stockCount = stockArray.length; // Stock count is now directly on the item object from the API fix
+                const stockCount = item.stock || 0; 
                 const isOutOfStock = stockCount === 0;
 
                 let bgClass = 'ml';
@@ -143,7 +157,6 @@
             const result = await res.json();
 
             if(result.success) {
-                // Show Custom Success Modal
                 document.getElementById('purchasedCodeDisplay').textContent = result.code;
                 openModal('successModal');
                 init(); // Refresh Data
