@@ -6,7 +6,6 @@
     <title>Pro Game Shop</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
-        /* Modal Styles for History, Transfer, Redeem */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 999; align-items: center; justify-content: center; }
         .modal-content { background: #222; padding: 20px; width: 90%; max-width: 400px; border-radius: 10px; border: 1px solid #ffd700; max-height: 80vh; overflow-y: auto; }
         .history-item { background: #333; padding: 10px; margin-bottom: 10px; border-radius: 5px; border-left: 4px solid #0f0; }
@@ -41,32 +40,10 @@
         <div class="grid" id="productGrid"></div>
     </div>
 
-    <div id="historyModal" class="modal">
-        <div class="modal-content">
-            <h2 style="color: #ffd700; text-align: center; margin-top: 0;">MY ORDERS</h2>
-            <div id="historyList">Loading...</div>
-            <button class="close-btn" onclick="closeModal('historyModal')">CLOSE</button>
-        </div>
-    </div>
+    <div id="historyModal" class="modal"><div class="modal-content"><h2 style="color: #ffd700; text-align: center; margin-top: 0;">MY ORDERS</h2><div id="historyList">Loading...</div><button class="close-btn" onclick="closeModal('historyModal')">CLOSE</button></div></div>
+    <div id="transferModal" class="modal"><div class="modal-content"><h2 style="color: #fff; text-align: center;">TRANSFER MONEY</h2><input type="text" id="tReceiver" class="inp-field" placeholder="Receiver Username"><input type="number" id="tAmount" class="inp-field" placeholder="Amount (MMK)"><button class="action-btn" style="background: #673AB7;" onclick="doTransfer()">SEND NOW</button><button class="close-btn" onclick="closeModal('transferModal')">CANCEL</button></div></div>
+    <div id="voucherModal" class="modal"><div class="modal-content"><h2 style="color: #fff; text-align: center;">REDEEM VOUCHER</h2><input type="text" id="vCodeInput" class="inp-field" placeholder="Enter Code (e.g. LUCKY)"><button class="action-btn" style="background: #009688;" onclick="doRedeem()">CLAIM REWARD</button><button class="close-btn" onclick="closeModal('voucherModal')">CANCEL</button></div></div>
 
-    <div id="transferModal" class="modal">
-        <div class="modal-content">
-            <h2 style="color: #fff; text-align: center;">TRANSFER MONEY</h2>
-            <input type="text" id="tReceiver" class="inp-field" placeholder="Receiver Username">
-            <input type="number" id="tAmount" class="inp-field" placeholder="Amount (MMK)">
-            <button class="action-btn" style="background: #673AB7;" onclick="doTransfer()">SEND NOW</button>
-            <button class="close-btn" onclick="closeModal('transferModal')">CANCEL</button>
-        </div>
-    </div>
-
-    <div id="voucherModal" class="modal">
-        <div class="modal-content">
-            <h2 style="color: #fff; text-align: center;">REDEEM VOUCHER</h2>
-            <input type="text" id="vCodeInput" class="inp-field" placeholder="Enter Code (e.g. LUCKY)">
-            <button class="action-btn" style="background: #009688;" onclick="doRedeem()">CLAIM REWARD</button>
-            <button class="close-btn" onclick="closeModal('voucherModal')">CANCEL</button>
-        </div>
-    </div>
 
     <script>
         let allItems = [];
@@ -79,7 +56,6 @@
                 document.getElementById('userBalance').innerHTML = 
                     `${user.username.toUpperCase()} | <span style="color:#0f0">${user.balance} MMK</span>`;
 
-                // SHOW ADMIN BUTTON IF USER IS ADMIN
                 if(user.username === "admin") {
                     const nav = document.querySelector('.categories');
                     nav.insertAdjacentHTML('beforeend', 
@@ -98,8 +74,18 @@
         function renderItems(items) {
             const grid = document.getElementById('productGrid');
             grid.innerHTML = '';
+            
+            if (items.length === 0) {
+                 grid.innerHTML = '<p style="color:#888; text-align:center; padding: 30px;">No items in stock. Admin must add new items.</p>';
+                 return;
+            }
+
             items.forEach(item => {
-                const isOutOfStock = item.stock.length === 0;
+                // FIX: Ensure item.stock is treated as an array to prevent crashes
+                const stockArray = item.stock || []; 
+                const stockCount = stockArray.length;
+                const isOutOfStock = stockCount === 0;
+
                 let bgClass = 'ml';
                 if(item.category === 'pubg') bgClass = 'pubg';
                 if(item.category === 'netflix') bgClass = 'nf';
@@ -111,7 +97,7 @@
                     <div class="info">
                         <h3>${item.name}</h3>
                         <p class="price">${item.price}</p>
-                        <p style="font-size:12px; color:${isOutOfStock ? 'red':'#0f0'}">Stock: ${item.stock.length}</p>
+                        <p style="font-size:12px; color:${isOutOfStock ? 'red':'#0f0'}">Stock: ${stockCount}</p>
                         <button onclick="buyItem('${item.name}')" ${isOutOfStock ? 'disabled':''}>
                             ${isOutOfStock ? "OUT OF STOCK" : "BUY NOW"}
                         </button>
@@ -128,7 +114,6 @@
 
         async function buyItem(name) {
             if(!confirm(`Buy ${name}?`)) return;
-
             const res = await fetch('/api/buy', {
                 method: 'POST',
                 body: JSON.stringify({ itemName: name })
@@ -136,7 +121,6 @@
             const result = await res.json();
 
             if(result.success) {
-                // Customized Success Message Here
                 alert(`SUCCESS! Thank you for purchase.\nYour Code:\n${result.code}\n\n(Saved to History)`); 
                 init(); 
             } else {
@@ -147,7 +131,7 @@
         function openModal(id) { document.getElementById(id).style.display = 'flex'; }
         function closeModal(id) { 
             document.getElementById(id).style.display = 'none';
-            document.getElementById('tReceiver').value = ''; // Clear transfer fields
+            document.getElementById('tReceiver').value = ''; 
             document.getElementById('tAmount').value = '';
             document.getElementById('vCodeInput').value = '';
         }
