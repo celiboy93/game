@@ -1,14 +1,12 @@
-import { serveFile } from "npm:jsr/@std/http/file-server";
+import { serveFile } from "https://deno.land/std@0.224.0/http/file_server.ts";
 
 Deno.serve((req) => {
   const url = new URL(req.url);
 
-  // Homepage requested -> serve index.html
   if (url.pathname === "/") {
     return serveFile(req, "./static/index.html");
   }
 
-  // Other files (css, images) -> serve from static folder
   if (url.pathname.startsWith("/static/")) {
     return serveFile(req, "." + url.pathname);
   }
