@@ -10,62 +10,98 @@
 
     <header>
         <div class="logo">💎 MY SHOP</div>
-        <div class="balance">Stock: Available</div>
+        <div class="balance">Stock: Live</div>
     </header>
 
     <div class="categories">
-        <button class="active">All</button>
-        <button>Mobile Legends</button>
-        <button>PUBG</button>
-        <button>Netflix</button>
+        <button class="active" onclick="filterItems('all')">All</button>
+        <button onclick="filterItems('ml')">Mobile Legends</button>
+        <button onclick="filterItems('pubg')">PUBG</button>
+        <button onclick="filterItems('netflix')">Netflix</button>
     </div>
 
     <div class="container">
         <h2>Trending Items 🔥</h2>
-        
-        <div class="grid">
-            <div class="card">
-                <div class="img-box ml">MLBB</div>
-                <div class="info">
-                    <h3>Weekly Pass</h3>
-                    <p class="price">3,500 MMK</p>
-                    <button onclick="buyItem('Weekly Pass')">BUY NOW</button>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="img-box ml">MLBB</div>
-                <div class="info">
-                    <h3>86 Diamonds</h3>
-                    <p class="price">2,800 MMK</p>
-                    <button onclick="buyItem('86 Diamonds')">BUY NOW</button>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="img-box pubg">PUBG</div>
-                <div class="info">
-                    <h3>60 UC</h3>
-                    <p class="price">2,500 MMK</p>
-                    <button onclick="buyItem('60 UC')">BUY NOW</button>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="img-box nf">NETFLIX</div>
-                <div class="info">
-                    <h3>1 Month Premium</h3>
-                    <p class="price">5,000 MMK</p>
-                    <button onclick="buyItem('Netflix 1 Month')">BUY NOW</button>
-                </div>
-            </div>
+        <div class="grid" id="productGrid">
+            <p style="color: #888;">Loading items...</p>
         </div>
     </div>
 
     <script>
-        function buyItem(itemName) {
-            alert("You clicked Buy: " + itemName + "\n(Backend system coming soon!)");
+        let allItems = [];
+
+        async function loadShop() {
+            const res = await fetch('/api/items');
+            allItems = await res.json();
+            renderItems(allItems);
         }
+
+        function renderItems(items) {
+            const grid = document.getElementById('productGrid');
+            grid.innerHTML = '';
+
+            if(items.length === 0) {
+                grid.innerHTML = '<p style="padding:20px;">No items available yet.</p>';
+                return;
+            }
+
+            items.forEach(item => {
+                const stockCount = item.stock.length;
+                const isOutOfStock = stockCount === 0;
+                const btnText = isOutOfStock ? "OUT OF STOCK" : "BUY NOW";
+                const btnColor = isOutOfStock ? "background:#555; cursor:not-allowed;" : "";
+                
+                let bgClass = 'ml';
+                if(item.category === 'pubg') bgClass = 'pubg';
+                if(item.category === 'netflix') bgClass = 'nf';
+
+                const div = document.createElement('div');
+                div.className = 'card';
+                div.innerHTML = `
+                    <div class="img-box ${bgClass}">${item.category.toUpperCase()}</div>
+                    <div class="info">
+                        <h3>${item.name}</h3>
+                        <p class="price">${item.price}</p>
+                        <p style="font-size:12px; color:${isOutOfStock ? 'red':'#0f0'}">Stock: ${stockCount}</p>
+                        <button onclick="buyItem('${item.name}')" style="${btnColor}" ${isOutOfStock ? 'disabled':''}>
+                            ${btnText}
+                        </button>
+                    </div>
+                `;
+                grid.appendChild(div);
+            });
+        }
+
+        function filterItems(category) {
+            if(category === 'all') {
+                renderItems(allItems);
+            } else {
+                const filtered = allItems.filter(i => i.category === category);
+                renderItems(filtered);
+            }
+        }
+
+        async function buyItem(itemName) {
+            const confirmBuy = confirm("Buy " + itemName + "?");
+            if(!confirmBuy) return;
+
+            const res = await fetch('/api/buy', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ itemName })
+            });
+
+            const result = await res.json();
+
+            if(result.success) {
+                alert("✅ PURCHASE SUCCESSFUL!\n\nYour Code:\n" + result.code);
+                loadShop(); // Refresh stock
+            } else {
+                alert("❌ Error: " + result.error);
+            }
+        }
+
+        loadShop();
     </script>
 </body>
 </html>
