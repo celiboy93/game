@@ -9,14 +9,36 @@
         input, select, button, textarea { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
         button { background: #ffd700; border: none; font-weight: bold; cursor: pointer; }
         .box { background: #333; padding: 15px; margin-bottom: 20px; border-radius: 8px; border: 1px solid #444; }
-        h2 { color: #ffd700; border-bottom: 1px solid #555; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #555; padding: 8px; text-align: left; }
+        h2 { color: #ffd700; border-bottom: 1px solid #555; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        th, td { border: 1px solid #555; padding: 8px; text-align: left; vertical-align: top; }
         th { background: #444; }
+        .action-btns button { width: auto; padding: 5px 10px; font-size: 12px; margin-right: 5px; }
+        .delete-btn { background: #d32f2f; color: white; }
+        .edit-btn { background: #2196F3; color: white; }
+        .full-stock { font-size: 12px; white-space: pre-wrap; background: #222; padding: 5px; border-radius: 3px; }
+        
+        /* Modal for Editing */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 999; align-items: center; justify-content: center; }
+        .modal-content { background: #333; padding: 20px; width: 90%; max-width: 400px; border-radius: 10px; max-height: 90vh; overflow-y: auto; }
     </style>
 </head>
 <body>
     <h1>ADMIN DASHBOARD</h1>
+
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <h2>EDIT ITEM: <span id="editItemName"></span></h2>
+            <form id="editForm">
+                <input type="hidden" id="editItemId">
+                <input type="text" id="editItemPrice" placeholder="Price (e.g. 3500)" required>
+                <textarea id="editItemStock" rows="8" placeholder="Codes (one per line)"></textarea>
+                <button type="submit" style="background: #4CAF50;">SAVE CHANGES</button>
+                <button type="button" onclick="closeEditModal()" class="delete-btn">CANCEL</button>
+            </form>
+        </div>
+    </div>
+
 
     <div class="box">
         <h2>USER MANAGEMENT</h2>
@@ -58,7 +80,103 @@
         </form>
     </div>
 
+    <div class="box">
+        <h2>CURRENT ITEM STOCK (CRUD)</h2>
+        <table id="itemTable">
+            <thead>
+                <tr><th>Name</th><th>Price</th><th>Stock</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+    </div>
+
     <script>
+        let allAdminItems = []; // Store full items list for admin view
+
+        function openEditModal(itemId, itemName, itemPrice, itemStock) {
+            document.getElementById('editItemId').value = itemId;
+            document.getElementById('editItemName').textContent = itemName;
+            document.getElementById('editItemPrice').value = itemPrice.replace(" MMK", "");
+            document.getElementById('editItemStock').value = itemStock.join('\n');
+            document.getElementById('editModal').style.display = 'flex';
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+        }
+
+        async function loadAdminData() {
+            // Load Items (Including full stock)
+            const itemRes = await fetch('/api/items');
+            allAdminItems = await itemRes.json(); 
+            
+            const itemTableBody = document.querySelector('#itemTable tbody');
+            itemTableBody.innerHTML = '';
+            
+            allAdminItems.forEach(item => {
+                const itemId = item.name.replace(/\s+/g, '_').toLowerCase();
+                const stockDisplay = item.stock.length > 0 ? `${item.stock.length} (${item.stock.length * 100}%)` : `0`;
+
+                itemTableBody.innerHTML += `
+                    <tr>
+                        <td>${item.name} (${item.category.toUpperCase()})</td>
+                        <td>${item.price}</td>
+                        <td style="color:${item.stock.length > 0 ? '#0F0' : 'red'};">${stockDisplay}</td>
+                        <td class="action-btns">
+                            <button class="edit-btn" onclick="openEditModal('${itemId}', '${item.name}', '${item.price}', [${item.stock.map(s => \`\\"${s}\\"`).join(',')}] )">Edit</button>
+                            <button class="delete-btn" onclick="deleteItem('${itemId}')">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            // Load Users
+            loadUsers();
+        }
+
+        async function deleteItem(itemId) {
+            if(!confirm("Are you sure you want to delete this item?")) return;
+
+            await fetch('/api/admin/delete-item', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ id: itemId })
+            });
+            alert("Item deleted successfully!");
+            loadAdminData();
+        }
+
+        document.getElementById('editForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('editItemId').value;
+            const price = document.getElementById('editItemPrice').value;
+            const stockText = document.getElementById('editItemStock').value;
+            
+            // Find the original item data to keep category, etc.
+            const originalItem = allAdminItems.find(i => i.name.replace(/\s+/g, '_').toLowerCase() === id);
+
+            if (!originalItem) return alert("Error: Item data not found.");
+
+            const updatedData = {
+                ...originalItem,
+                price: price + " MMK",
+                stock: stockText.split('\n').filter(s => s.trim() !== "")
+            };
+
+            await fetch('/api/admin/edit-item', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ id: id, data: updatedData })
+            });
+
+            alert("Item Updated!");
+            closeEditModal();
+            loadAdminData();
+        };
+
+        // --- Existing Admin Functions ---
+
         async function loadUsers() {
             const res = await fetch('/api/admin/users');
             const users = await res.json();
@@ -75,7 +193,7 @@
             if(!u || !a) return alert("Input missing");
             await fetch('/api/admin/topup', { method: 'POST', body: JSON.stringify({ username: u, amount: a }) });
             alert("Topup Successful!");
-            loadUsers();
+            loadAdminData();
         }
 
         async function createVoucher() {
@@ -86,9 +204,9 @@
 
             await fetch('/api/admin/create-voucher', {
                 method: 'POST',
-                body: JSON.stringify({ code, amount, limit })
+                body: JSON.stringify({ code, amount: amount, limit: limit })
             });
-            alert(`Voucher [${code}] Created! Value: ${amount}`);
+            alert(`Voucher [${code}] Created!`);
         }
 
         document.getElementById('addForm').onsubmit = async (e) => {
@@ -101,9 +219,10 @@
             };
             await fetch('/api/add-item', { method: 'POST', body: JSON.stringify(data) });
             alert("Item Added!");
+            loadAdminData();
         };
 
-        loadUsers();
+        loadAdminData(); // Initial data load
     </script>
 </body>
 </html>
