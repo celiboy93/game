@@ -95,20 +95,21 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify(user.value), { headers: { "content-type": "application/json" } });
   }
 
-  // --- SHOP & ADMIN API (ROBUST PATH CHECKS) ---
-
-  if (url.pathname.startsWith("/api/items")) { // FIX: Use startsWith for reliable API fetching
+  // --- SHOP & ADMIN API (PATCHED) ---
+  
+  if (url.pathname.startsWith("/api/items")) {
     const entries = kv.list({ prefix: ["items"] });
     const items = [];
-    for await (const entry of entries) items.push(entry.value);
-    return new Response(JSON.stringify(items), { headers: { "content-type": "application/json" } });
-  }
+    for await (const entry of entries) {
+        const itemCopy = { ...entry.value };
+        
+        // SECURITY PATCH: Do not send the actual codes to the public shop page
+        // Only send the stock count (length)
+        itemCopy.stock = itemCopy.stock ? itemCopy.stock.length : 0; 
 
-  if (url.pathname.startsWith("/api/admin/users")) { // FIX: Use startsWith for reliable API fetching
-    const entries = kv.list({ prefix: ["users"] });
-    const users = [];
-    for await (const entry of entries) users.push(entry.value);
-    return new Response(JSON.stringify(users), { headers: { "content-type": "application/json" } });
+        items.push(itemCopy);
+    }
+    return new Response(JSON.stringify(items), { headers: { "content-type": "application/json" } });
   }
 
   if (req.method === "POST" && url.pathname === "/api/add-item") {
@@ -129,6 +130,15 @@ Deno.serve(async (req) => {
     return new Response("Topup Success");
   }
 
+  if (url.pathname === "/api/admin/users") {
+    const entries = kv.list({ prefix: ["users"] });
+    const users = [];
+    for await (const entry of entries) users.push(entry.value);
+    return new Response(JSON.stringify(users), { headers: { "content-type": "application/json" } });
+  }
+
+  // ... (REST OF THE API LOGIC REMAINS THE SAME) ...
+
   if (req.method === "POST" && url.pathname === "/api/admin/create-voucher") {
     const body = await req.json();
     await kv.set(["vouchers", body.code], { amount: parseInt(body.amount), limit: parseInt(body.limit), used: 0 });
@@ -140,6 +150,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const receiverName = body.receiver.toLowerCase();
     const amount = parseInt(body.amount);
+
     if (receiverName === sessionUser) return new Response("Cannot send to self", { status: 400 });
     if (amount <= 0) return new Response("Invalid amount", { status: 400 });
 
@@ -218,7 +229,7 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({ success: true, code: purchasedCode }), { headers: { "content-type": "application/json" } });
   }
-  
+
   if (url.pathname === "/api/history") {
     if (!sessionUser) return new Response("Unauthorized", { status: 401 });
     const entries = kv.list({ prefix: ["history", sessionUser] });
