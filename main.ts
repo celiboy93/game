@@ -1,6 +1,6 @@
 import { serveFile } from "https://deno.land/std@0.224.0/http/file_server.ts";
 import { setCookie, getCookies, deleteCookie } from "https://deno.land/std@0.224.0/http/cookie.ts";
-import * as bcrypt from "https://deno.land/x/bcrypt@v1.1.0/mod.ts"; // Password Hashing Library
+import * as bcrypt from "https://deno.land/x/bcrypt@v1.1.0/mod.ts"; // The Hashing Library
 
 const kv = await Deno.openKv();
 const ADMIN_USERNAME = "admin"; 
@@ -12,10 +12,10 @@ Deno.serve(async (req) => {
 
   // --- SECURITY & ADMIN CHECK ---
   if (url.pathname === "/admin" || url.pathname.startsWith("/static/admin.html")) {
-    if (sessionUser !== ADMIN_USERNAME) return new Response("Access Denied: Admins Only", { status: 403 });
+    if (sessionUser !== ADMIN_USER) return new Response("Access Denied: Admins Only", { status: 403 });
   }
   if (url.pathname.startsWith("/api/admin/")) {
-    if (sessionUser !== ADMIN_USERNAME) return new Response("Unauthorized", { status: 403 });
+    if (sessionUser !== ADMIN_USER) return new Response("Unauthorized", { status: 403 });
   }
 
   // --- ROUTING ---
@@ -67,10 +67,11 @@ Deno.serve(async (req) => {
     const user = await kv.get(["users", sessionUser]);
     return new Response(JSON.stringify(user.value), { headers: { "content-type": "application/json" } });
   }
-  
-  // --- REST OF SHOP/ADMIN API (UNCHANGED LOGIC) ---
+
+  // --- SHOP API (REMAINDER) ---
 
   if (req.method === "POST" && url.pathname === "/api/add-item") {
+    if (sessionUser !== ADMIN_USERNAME) return new Response("Unauthorized", { status: 403 });
     const item = await req.json();
     const id = item.name.replace(/\s+/g, '_').toLowerCase();
     await kv.set(["items", id], item);
@@ -126,7 +127,7 @@ Deno.serve(async (req) => {
 
     return new Response("Transfer Success");
   }
-  
+
   if (req.method === "POST" && url.pathname === "/api/redeem") {
     if (!sessionUser) return new Response("Unauthorized", { status: 401 });
     const body = await req.json();
@@ -187,9 +188,7 @@ Deno.serve(async (req) => {
       headers: { "content-type": "application/json" }
     });
   }
-
-  // --- GENERAL API & ROUTING ---
-
+  
   if (url.pathname === "/api/history") {
     if (!sessionUser) return new Response("Unauthorized", { status: 401 });
     const entries = kv.list({ prefix: ["history", sessionUser] });
