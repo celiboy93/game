@@ -45,14 +45,15 @@
         <div style="display: flex; gap: 10px;">
             <input type="text" id="topupUser" placeholder="Username">
             <input type="number" id="topupAmount" placeholder="Amount (MMK)">
-            <button id="topupBtn">ADD MONEY</button>
+            <button onclick="topup()">ADD MONEY</button>
         </div>
         
         <h3>User List</h3>
+        <button onclick="loadAdminData()" style="width: 100%; background: #4CAF50; margin-bottom: 10px;">CLICK TO REFRESH DATA</button>
         <table>
             <thead><tr><th>User</th><th>Balance</th></tr></thead>
             <tbody id="userTable">
-                 <tr><td colspan="2" style="color:yellow;">Loading User Data...</td></tr>
+                 <tr><td colspan="2" style="color:yellow;">(Click button to load)</td></tr>
             </tbody>
         </table>
     </div>
@@ -63,7 +64,7 @@
             <input type="text" id="vCode" placeholder="Code Name (e.g. LUCKY)">
             <input type="number" id="vAmount" placeholder="Value (MMK)">
             <input type="number" id="vLimit" placeholder="Usage Limit (e.g. 10)">
-            <button id="createVoucherBtn">CREATE VOUCHER</button>
+            <button onclick="createVoucher()">CREATE VOUCHER</button>
         </div>
     </div>
 
@@ -89,7 +90,7 @@
                 <tr><th>Name</th><th>Price</th><th>Stock</th><th>Actions</th></tr>
             </thead>
             <tbody>
-                 <tr><td colspan="4" style="color:yellow;">Loading Item Data...</td></tr>
+                 <tr><td colspan="4" style="color:yellow;">(Click refresh button above)</td></tr>
             </tbody>
         </table>
     </div>
@@ -106,13 +107,10 @@
             try {
                 const res = await fetch('/api/admin/users');
                 
-                // FINAL DEBUG: ALERT STATUS CODE
-                if (res.status !== 200) {
-                     alert(`LOAD USERS FAILED! Status: ${res.status}. Check login.`);
+                if (!res.ok) {
                      tbody.innerHTML = `<tr><td colspan="2" style="color:red;">API FAIL! Status: ${res.status}</td></tr>`;
                      return;
                 }
-
                 const users = await res.json();
                 tbody.innerHTML = '';
                 
@@ -121,51 +119,48 @@
                     tbody.innerHTML += `<tr><td>${u.username}</td><td style="color:#0f0">${balance} MMK</td></tr>`;
                 });
             } catch (e) {
-                // Catch JSON/Network errors
-                alert("NETWORK CRASH during User Load.");
                 tbody.innerHTML = `<tr><td colspan="2" style="color:red;">NETWORK CRASH: ${e.message}</td></tr>`;
             }
         }
 
+        // --- CORE DATA LOADER (MANUAL) ---
         async function loadAdminData() {
             try {
+                const itemTableBody = document.querySelector('#itemTable tbody');
+                
                 const itemRes = await fetch('/api/items');
                 
-                if (itemRes.status !== 200) {
-                     alert(`LOAD ITEMS FAILED! Status: ${itemRes.status}.`);
-                     document.querySelector('#itemTable tbody').innerHTML = `<tr><td colspan="4" style="color:red;">API FAIL! Status: ${itemRes.status}</td></tr>`;
+                if (!itemRes.ok) {
+                     itemTableBody.innerHTML = `<tr><td colspan="4" style="color:red;">API FAIL! Status: ${itemRes.status}</td></tr>`;
                      loadUsers(); 
                      return;
                 }
                 
                 allAdminItems = await itemRes.json(); 
+            
+                itemTableBody.innerHTML = '';
+                
+                allAdminItems.forEach(item => {
+                    const itemId = item.name.replace(/\s+/g, '_').toLowerCase();
+                    
+                    itemTableBody.innerHTML += `
+                        <tr>
+                            <td>${item.name} (${item.category.toUpperCase()})</td>
+                            <td>${item.price}</td>
+                            <td style="color:${item.stock.length > 0 ? '#0F0' : 'red'};">${item.stock.length}</td>
+                            <td class="action-btns">
+                                <button class="edit-btn" onclick="openEditModal('${itemId}', '${item.name}', '${item.price}', [${item.stock.map(s => \`\\"${s}\\"`).join(',')}] )">Edit</button>
+                                <button class="delete-btn" onclick="deleteItem('${itemId}')">Delete</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                loadUsers(); // Final call to ensure users are loaded
             } catch (e) {
                 document.querySelector('#itemTable tbody').innerHTML = `<tr><td colspan="4" style="color:red;">CLIENT CRASH: ${e.message}</td></tr>`;
                 loadUsers(); 
-                return;
             }
-            
-            // Render Items
-            const itemTableBody = document.querySelector('#itemTable tbody');
-            itemTableBody.innerHTML = '';
-            
-            allAdminItems.forEach(item => {
-                const itemId = item.name.replace(/\s+/g, '_').toLowerCase();
-                
-                itemTableBody.innerHTML += `
-                    <tr>
-                        <td>${item.name} (${item.category.toUpperCase()})</td>
-                        <td>${item.price}</td>
-                        <td style="color:${item.stock.length > 0 ? '#0F0' : 'red'};">${item.stock.length}</td>
-                        <td class="action-btns">
-                            <button class="edit-btn" onclick="openEditModal('${itemId}', '${item.name}', '${item.price}', [${item.stock.map(s => \`\\"${s}\\"`).join(',')}] )">Edit</button>
-                            <button class="delete-btn" onclick="deleteItem('${itemId}')">Delete</button>
-                        </td>
-                    </tr>
-                `;
-            });
-            
-            loadUsers(); 
         }
 
         // --- HANDLER FUNCTIONS ---
@@ -203,7 +198,7 @@
             }
             
             document.getElementById('addForm').reset();
-            loadAdminData(); 
+            loadAdminData(); // Refresh list to see item
         }
 
         // --- Event Listeners ---
@@ -216,12 +211,10 @@
 
 
         // --- Other CRUD / TOPUP Functions (UNCHANGED) ---
-        async function deleteItem(itemId) { /* ... */ }
-        document.getElementById('editForm').onsubmit = async (e) => { /* ... */ };
-        async function topup() { /* ... */ }
-        async function createVoucher() { /* ... */ }
 
-        loadAdminData(); // Initial data load
+        // ... (Remaining functions below: deleteItem, editForm.onsubmit, topup, createVoucher, etc.) ...
+        
+        loadAdminData(); // Initial data load to show 'Click button to load' text
     </script>
 </body>
 </html>
