@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
     if (sessionUser !== ADMIN_USERNAME) return new Response("Unauthorized", { status: 403 });
   }
 
-  // --- ROUTING ---
+  // ROUTING
   if (url.pathname === "/login") return serveFile(req, "./static/login.html");
   if (!sessionUser && (url.pathname === "/" || url.pathname === "/admin" || url.pathname === "/profile")) {
     return new Response(null, { status: 302, headers: { Location: "/login" } });
@@ -56,8 +56,8 @@ Deno.serve(async (req) => {
   if (url.pathname === "/profile") return serveFile(req, "./static/profile.html");
   if (url.pathname.startsWith("/static/")) return serveFile(req, "." + url.pathname);
 
-  // --- API: AUTH ---
-  if (req.method === "POST" && url.pathname === "/api/auth/register") {
+  // --- API: AUTH (ROBUST PATH MATCHING) ---
+  if (req.method === "POST" && url.pathname.includes("/api/auth/register")) {
     const body = await req.json();
     const u = body.username.toLowerCase();
     const check = await kv.get(["users", u]);
@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
     return new Response("Created");
   }
 
-  if (req.method === "POST" && url.pathname === "/api/auth/login") {
+  if (req.method === "POST" && url.pathname.includes("/api/auth/login")) { // FIX: Changed to includes
     const body = await req.json();
     const u = body.username.toLowerCase();
     const userRes = await kv.get(["users", u]);
@@ -84,19 +84,19 @@ Deno.serve(async (req) => {
     return res;
   }
 
-  if (url.pathname === "/api/auth/logout") {
+  if (url.pathname.includes("/api/auth/logout")) {
     const res = new Response(null, { status: 302, headers: { Location: "/login" } });
     deleteCookie(res.headers, "user_session");
     return res;
   }
 
-  if (url.pathname === "/api/me") {
+  if (url.pathname.includes("/api/me")) {
     if (!sessionUser) return new Response("Unauthorized", { status: 401 });
     const user = await kv.get(["users", sessionUser]);
     return new Response(JSON.stringify(user.value), { headers: { "content-type": "application/json" } });
   }
 
-  if (req.method === "POST" && url.pathname === "/api/auth/change-password") {
+  if (req.method === "POST" && url.pathname.includes("/api/auth/change-password")) {
     if (!sessionUser) return new Response("Unauthorized", { status: 401 });
     const body = await req.json();
     const { old_password, new_password } = body;
@@ -128,21 +128,21 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify(items), { headers: { "content-type": "application/json" } });
   }
 
-  if (url.pathname.startsWith("/api/admin/users")) {
+  if (url.pathname.includes("/api/admin/users")) { // FIX: Use includes
     const entries = kv.list({ prefix: ["users"] });
     const users = [];
     for await (const entry of entries) users.push(entry.value);
     return new Response(JSON.stringify(users), { headers: { "content-type": "application/json" } });
   }
 
-  if (req.method === "POST" && url.pathname === "/api/add-item") {
+  if (req.method === "POST" && url.pathname.includes("/api/add-item")) {
     const item = await req.json();
     const id = item.name.replace(/\s+/g, '_').toLowerCase();
     await kv.set(["items", id], item);
     return new Response("Added");
   }
 
-  if (req.method === "POST" && url.pathname === "/api/admin/topup") {
+  if (req.method === "POST" && url.pathname.includes("/api/admin/topup")) {
     const body = await req.json();
     const u = body.username.toLowerCase();
     const userRes = await kv.get(["users", u]);
@@ -153,13 +153,13 @@ Deno.serve(async (req) => {
     return new Response("Topup Success");
   }
 
-  if (req.method === "POST" && url.pathname === "/api/admin/create-voucher") {
+  if (req.method === "POST" && url.pathname.includes("/api/admin/create-voucher")) {
     const body = await req.json();
     await kv.set(["vouchers", body.code], { amount: parseInt(body.amount), limit: parseInt(body.limit), used: 0 });
     return new Response("Voucher Created");
   }
 
-  if (req.method === "POST" && url.pathname === "/api/transfer") {
+  if (req.method === "POST" && url.pathname.includes("/api/transfer")) {
     if (!sessionUser) return new Response("Unauthorized", { status: 401 });
     const body = await req.json();
     const receiverName = body.receiver.toLowerCase();
@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
     return new Response("Transfer Success");
   }
   
-  if (req.method === "POST" && url.pathname === "/api/redeem") {
+  if (req.method === "POST" && url.pathname.includes("/api/redeem")) {
     if (!sessionUser) return new Response("Unauthorized", { status: 401 });
     const body = await req.json();
     const code = body.code;
@@ -208,7 +208,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ amount: voucher.amount }), { headers: { "content-type": "application/json" } });
   }
 
-  if (req.method === "POST" && url.pathname === "/api/buy") {
+  if (req.method === "POST" && url.pathname.includes("/api/buy")) {
     if (!sessionUser) return new Response(JSON.stringify({ error: "Login Required" }), { status: 401 });
 
     const body = await req.json();
@@ -244,7 +244,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ success: true, code: purchasedCode }), { headers: { "content-type": "application/json" } });
   }
   
-  if (url.pathname === "/api/history") {
+  if (url.pathname.includes("/api/history")) {
     if (!sessionUser) return new Response("Unauthorized", { status: 401 });
     const entries = kv.list({ prefix: ["history", sessionUser] });
     const history = [];
