@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minimal Admin</title>
+    <style>
+        body { background: #222; color: white; font-family: sans-serif; padding: 20px; max-width: 500px; margin: auto; }
+        input, select, button, textarea { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
+        button { background: #ffd700; border: none; font-weight: bold; cursor: pointer; }
+        .box { background: #333; padding: 15px; border-radius: 8px; border: 1px solid #444; }
+        h2 { color: #ffd700; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h2>ADD NEW ITEM (Test)</h2>
+        <form id="addForm">
+            <select id="category">
+                <option value="ml">MLBB</option>
+            </select>
+            <input type="text" id="name" placeholder="Item Name" required>
+            <input type="text" id="price" placeholder="Price (e.g. 3500)" required>
+            <textarea id="stock" rows="3" placeholder="Codes (one per line)" required></textarea>
+            <button type="submit" id="addItemBtn">ADD ITEM</button>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('addForm').addEventListener('submit', async function(e) {
+            e.preventDefault(); 
+            try {
+                const data = {
+                    category: document.getElementById('category').value,
+                    name: document.getElementById('name').value,
+                    price: document.getElementById('price').value,
+                    stock: document.getElementById('stock').value.split('\n').filter(s => s.trim() !== "")
+                };
+                
+                const response = await fetch('/api/add-item', { 
+                    method: 'POST', 
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data) 
+                });
+
+                if (response.ok) {
+                    alert("SUCCESS! Item Added. Status: " + response.status);
+                } else {
+                    const errorText = await response.text();
+                    alert(`SERVER ERROR! Status: ${response.status}. Msg: ${errorText}`);
+                }
+            } catch (fatalError) {
+                alert("CRITICAL NETWORK CRASH. Error: " + fatalError.message);
+                return;
+            }
+            
+            this.reset(); // Clear form fields
+        });
+    </script>
+</body>
+</html>
