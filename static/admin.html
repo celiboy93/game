@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shop Admin</title>
     <style>
-        /* (Styles remain unchanged) */
         body { background: #222; color: white; font-family: sans-serif; padding: 20px; max-width: 800px; margin: auto; }
         input, select, button, textarea { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; }
         button { background: #ffd700; border: none; font-weight: bold; cursor: pointer; }
@@ -18,6 +17,8 @@
         .delete-btn { background: #d32f2f; color: white; }
         .edit-btn { background: #2196F3; color: white; }
         .full-stock { font-size: 12px; white-space: pre-wrap; background: #222; padding: 5px; border-radius: 3px; }
+        
+        /* Modal for Editing */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 999; align-items: center; justify-content: center; }
         .modal-content { background: #333; padding: 20px; width: 90%; max-width: 400px; border-radius: 10px; max-height: 90vh; overflow-y: auto; }
     </style>
@@ -48,11 +49,10 @@
         </div>
         
         <h3>User List</h3>
-        <button onclick="loadAdminData()" style="width: 100%; background: #4CAF50; margin-bottom: 10px;">CLICK TO REFRESH DATA</button>
         <table>
             <thead><tr><th>User</th><th>Balance</th></tr></thead>
             <tbody id="userTable">
-                 <tr><td colspan="2" style="color:yellow;">(Click button to load)</td></tr>
+                 <tr><td colspan="2" style="color:yellow;">Loading User Data...</td></tr>
             </tbody>
         </table>
     </div>
@@ -89,7 +89,7 @@
                 <tr><th>Name</th><th>Price</th><th>Stock</th><th>Actions</th></tr>
             </thead>
             <tbody>
-                 <tr><td colspan="4" style="color:yellow;">(Click refresh button above)</td></tr>
+                 <tr><td colspan="4" style="color:yellow;">Loading Item Data...</td></tr>
             </tbody>
         </table>
     </div>
@@ -100,20 +100,16 @@
         function openEditModal(itemId, itemName, itemPrice, itemStock) { /* ... */ }
         function closeEditModal() { /* ... */ }
 
-        // --- LOAD USER DATA (CRITICAL FIX FOR DISPLAY) ---
+        // --- LOAD USER DATA (CLEAN VERSION) ---
         async function loadUsers() {
             const tbody = document.getElementById('userTable');
             try {
                 const res = await fetch('/api/admin/users');
                 
-                // FINAL DEBUG: ALERT STATUS CODE
-                alert('User API Status: ' + res.status); 
-                
-                if (res.status !== 200) {
-                     tbody.innerHTML = `<tr><td colspan="2" style="color:red;">API FAIL! Status: ${res.status}</td></tr>`;
+                if (!res.ok) {
+                     tbody.innerHTML = `<tr><td colspan="2" style="color:red;">API FAIL: Status ${res.status}</td></tr>`;
                      return;
                 }
-                
                 const users = await res.json();
                 tbody.innerHTML = '';
                 
@@ -122,23 +118,19 @@
                     tbody.innerHTML += `<tr><td>${u.username}</td><td style="color:#0f0">${balance} MMK</td></tr>`;
                 });
             } catch (e) {
-                // Catch JSON/Network errors
-                alert("NETWORK CRASH during User Load.");
                 tbody.innerHTML = `<tr><td colspan="2" style="color:red;">NETWORK CRASH: ${e.message}</td></tr>`;
             }
         }
 
+        // --- LOAD ITEMS DATA (CLEAN VERSION) ---
         async function loadAdminData() {
             try {
                 const itemTableBody = document.querySelector('#itemTable tbody');
                 const itemRes = await fetch('/api/items');
                 
-                // FINAL DEBUG: ALERT STATUS CODE
-                alert('Item API Status: ' + itemRes.status); 
-                
-                if (itemRes.status !== 200) {
+                if (!itemRes.ok) {
                      itemTableBody.innerHTML = `<tr><td colspan="4" style="color:red;">API FAIL! Status: ${itemRes.status}</td></tr>`;
-                     loadUsers(); 
+                     loadUsers();
                      return;
                 }
                 
@@ -146,9 +138,23 @@
             
                 itemTableBody.innerHTML = '';
                 
-                allAdminItems.forEach(item => { /* ... rendering logic ... */ });
+                allAdminItems.forEach(item => {
+                    const itemId = item.name.replace(/\s+/g, '_').toLowerCase();
+                    
+                    itemTableBody.innerHTML += `
+                        <tr>
+                            <td>${item.name} (${item.category.toUpperCase()})</td>
+                            <td>${item.price}</td>
+                            <td style="color:${item.stock.length > 0 ? '#0F0' : 'red'};">${item.stock.length}</td>
+                            <td class="action-btns">
+                                <button class="edit-btn" onclick="openEditModal('${itemId}', '${item.name}', '${item.price}', [${item.stock.map(s => \`\\"${s}\\"`).join(',')}] )">Edit</button>
+                                <button class="delete-btn" onclick="deleteItem('${itemId}')">Delete</button>
+                            </td>
+                        </tr>
+                    `;
+                });
                 
-                loadUsers(); // Final call to ensure users are loaded
+                loadUsers(); 
             } catch (e) {
                 document.querySelector('#itemTable tbody').innerHTML = `<tr><td colspan="4" style="color:red;">CLIENT CRASH: ${e.message}</td></tr>`;
                 loadUsers(); 
@@ -157,7 +163,7 @@
 
         // --- HANDLER FUNCTIONS ---
 
-        async function addItemHandler(e) {
+        document.getElementById('addForm').addEventListener('submit', async function(e) {
             e.preventDefault(); 
             try {
                 const data = {
@@ -167,8 +173,8 @@
                     stock: document.getElementById('stock').value.split('\n').filter(s => s.trim() !== "")
                 };
                 
-                if (data.name.length < 1) {
-                    alert("ERROR: Item Name is missing.");
+                if (data.name.length < 1 || data.price.length < 4) {
+                    alert("ERROR: Item Name or Price is invalid.");
                     return;
                 }
 
@@ -177,8 +183,6 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(data) 
                 });
-
-                alert('Add Item Status: ' + response.status); // FORCE ALERT ON SUBMIT
 
                 if (response.ok) {
                     alert("Item Added Successfully!");
@@ -191,22 +195,15 @@
                 return;
             }
             
-            document.getElementById('addForm').reset();
-            loadAdminData(); // Refresh list to see item
-        }
-
-        // --- Event Listeners ---
-        document.addEventListener('DOMContentLoaded', () => {
-            const addForm = document.getElementById('addForm');
-            if (addForm) {
-                addForm.addEventListener('submit', addItemHandler);
-            }
+            this.reset(); 
+            loadAdminData(); 
         });
 
         // --- Other CRUD / TOPUP Functions (UNCHANGED) ---
-        // ... (Remaining functions omitted for brevity) ...
 
-        loadAdminData(); // Initial data load to show 'Click button to load' text
+        // ... (Remaining functions for edit/delete/topup/voucher)
+
+        loadAdminData(); // Initial data load
     </script>
 </body>
 </html>
