@@ -99,8 +99,8 @@
 
         function openEditModal(itemId, itemName, itemPrice, itemStock) { /* ... */ }
         function closeEditModal() { /* ... */ }
-
-        // --- LOAD USER DATA (CRITICAL FIX FOR DISPLAY) ---
+        
+        // --- FINAL FIX: LOAD USER DATA ---
         async function loadUsers() {
             const tbody = document.getElementById('userTable');
             try {
@@ -118,7 +118,6 @@
                     tbody.innerHTML += `<tr><td>${u.username}</td><td style="color:#0f0">${balance} MMK</td></tr>`;
                 });
             } catch (e) {
-                // Catch JSON/Network errors
                 tbody.innerHTML = `<tr><td colspan="2" style="color:red;">NETWORK CRASH: ${e.message}</td></tr>`;
             }
         }
@@ -129,13 +128,14 @@
                 
                 if (!itemRes.ok) {
                      document.querySelector('#itemTable tbody').innerHTML = `<tr><td colspan="4" style="color:red;">API FAIL! Status: ${itemRes.status}</td></tr>`;
+                     loadUsers(); // Try to load users even if items fail
                      return;
                 }
                 
                 allAdminItems = await itemRes.json(); 
             } catch (e) {
-                console.error("Failed to load items from API:", e);
                 document.querySelector('#itemTable tbody').innerHTML = `<tr><td colspan="4" style="color:red;">CLIENT CRASH: ${e.message}</td></tr>`;
+                loadUsers(); // Try to load users even if items fail
                 return;
             }
             
@@ -158,12 +158,14 @@
                 `;
             });
             
-            loadUsers();
+            loadUsers(); // Final call to ensure users are loaded
         }
 
-        // --- HANDLER FUNCTIONS ---
-
-        async function addItemHandler(e) {
+        async function deleteItem(itemId) { /* ... unchanged ... */ }
+        document.getElementById('editForm').onsubmit = async (e) => { /* ... unchanged ... */ };
+        
+        // --- ADD ITEM LOGIC (FINAL DEBUG HANDLER) ---
+        document.getElementById('addForm').addEventListener('submit', async function(e) {
             e.preventDefault(); 
             try {
                 const data = {
@@ -173,8 +175,8 @@
                     stock: document.getElementById('stock').value.split('\n').filter(s => s.trim() !== "")
                 };
                 
-                if (data.name.length < 1) {
-                    alert("ERROR: Item Name is missing.");
+                if (data.name.length < 1 || data.price.length < 4) {
+                    alert("ERROR: Item Name or Price is invalid.");
                     return;
                 }
 
@@ -191,31 +193,23 @@
                     alert(`SERVER ERROR! Status: ${response.status}. Msg: ${errorText}`);
                 }
             } catch (fatalError) {
-                alert("CRITICAL CLIENT-SIDE CRASH. Please clear browser data and try again.");
+                alert("CRITICAL CLIENT-SIDE CRASH. Error: " + fatalError.message);
                 return;
             }
             
-            document.getElementById('addForm').reset();
-            loadAdminData(); 
-        }
-
-        // --- Event Listeners (Final, Robust Binding) ---
-        document.addEventListener('DOMContentLoaded', () => {
-            const addForm = document.getElementById('addForm');
-            if (addForm) {
-                addForm.addEventListener('submit', addItemHandler);
-            }
-            // Add other event listeners here if necessary
+            this.reset(); // Reset form fields
+            loadAdminData(); // Refresh list to see item
         });
+        // ----------------------------------------------------
 
 
-        // --- Other CRUD / TOPUP Functions (UNCHANGED) ---
-
-        async function deleteItem(itemId) { /* ... */ }
-        document.getElementById('editForm').onsubmit = async (e) => { /* ... */ };
-
-        async function topup() { /* ... */ }
-        async function createVoucher() { /* ... */ }
+        // --- Event Listeners and Initial Call ---
+        document.addEventListener('DOMContentLoaded', () => {
+             // We use event listener on the form itself for submission
+        });
+        
+        async function topup() { /* ... unchanged ... */ }
+        async function createVoucher() { /* ... unchanged ... */ }
 
         loadAdminData(); // Initial data load
     </script>
